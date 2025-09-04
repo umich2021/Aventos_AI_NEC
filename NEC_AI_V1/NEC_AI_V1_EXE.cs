@@ -235,7 +235,7 @@ namespace NEC_AI_V1
                                     roomLevel,
                                     StructuralType.NonStructural
                                 );
-
+                            =
                                 // Rotate the outlet to face the room interior
                                 XYZ wallDir = (hostWall.Orientation).Normalize(); // Wall outward normal
                                 XYZ facingDir = GetInteriorDirection(hostWall, space, doc); // Already have this helper
