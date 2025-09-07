@@ -97,7 +97,18 @@ namespace NEC_AI_V1
             {
                 var outlets = GenerateBedroomOutlets(space);
                 //PATH TO FAMILY
-
+                // Add this to your AnalyzeSpace method right before outlet placement:
+                string roomDebug = $"Room: {space.Name}\n";
+                roomDebug += $"Elements in this room:\n";
+                foreach (var elementId in space.ContainedElements)
+                {
+                    var element = doc.GetElement(elementId);
+                    if (element?.Location is LocationPoint locPoint)
+                    {
+                        roomDebug += $"  {element.Name}: ({locPoint.Point.X:F1}, {locPoint.Point.Y:F1})\n";
+                    }
+                }
+                TaskDialog.Show("Room Boundary Debug", roomDebug);
                 //PlaceElectricalOutlets(doc, outlets, space, null, "Table-Coffee", "24\" x 24\" x 24\"");
                 PlaceElectricalOutlets(doc, outlets, space, null, "Outlet-Single", "Single");
 
@@ -154,22 +165,20 @@ namespace NEC_AI_V1
             }
         }
         // CHANGE 5: Added main outlet placement method with transaction handling
-        private bool PlaceElectricalOutlets(Document doc, List<OutletData> outletData, SpaceRoomInfo space, string familyPath = null,
-                          string familyName = "Electrical Outlet", string typeName = "Duplex Outlet")
+        // --- REPLACEMENT: PlaceElectricalOutlets ---
+        private bool PlaceElectricalOutlets(
+            Document doc,
+            List<OutletData> outletData,
+            SpaceRoomInfo space,
+            string familyPath = null,
+            string familyName = "Electrical Outlet",
+            string typeName = "Duplex Outlet")
         {
-            FamilySymbol outletSymbol = null;
-
-            // Find the symbol first
-            var collector = new FilteredElementCollector(doc).OfClass(typeof(FamilySymbol));
-
-            foreach (FamilySymbol symbol in collector)
-            {
-                if (symbol.Family.Name == familyName && symbol.Name == typeName)
-                {
-                    outletSymbol = symbol;
-                    break;
-                }
-            }
+            // find symbol
+            FamilySymbol outletSymbol = new FilteredElementCollector(doc)
+                .OfClass(typeof(FamilySymbol))
+                .Cast<FamilySymbol>()
+                .FirstOrDefault(s => s.Family.Name == familyName && s.Name == typeName);
 
             if (outletSymbol == null)
             {
@@ -177,113 +186,136 @@ namespace NEC_AI_V1
                 return false;
             }
 
-            // FIRST TRANSACTION: Activate symbol if needed
+            // activate if needed
             if (!outletSymbol.IsActive)
             {
-                using (Transaction activateTransaction = new Transaction(doc, "Activate Symbol"))
+                using (var t = new Transaction(doc, "Activate Outlet Symbol"))
                 {
-                    activateTransaction.Start();
+                    t.Start();
                     outletSymbol.Activate();
                     doc.Regenerate();
-                    activateTransaction.Commit();
+                    t.Commit();
                 }
             }
 
-            // SECOND TRANSACTION: Place outlets
-            using (Transaction trans = new Transaction(doc, "Place Electrical Outlets"))
+            // resolve level
+            Level roomLevel = new FilteredElementCollector(doc)
+                .OfClass(typeof(Level))
+                .Cast<Level>()
+                .FirstOrDefault(l => l.Name == space.LevelName);
+
+            if (roomLevel == null)
+            {
+                TaskDialog.Show("Error", $"Level '{space.LevelName}' not found.");
+                return false;
+            }
+
+            int placed = 0;
+
+            using (var trans = new Transaction(doc, "Place Electrical Outlets"))
             {
                 trans.Start();
+                XYZ roomCenter = CalculateRoomCenter(space, doc);
+
                 try
                 {
-                    Level roomLevel = new FilteredElementCollector(doc)
-        .OfClass(typeof(Level))
-        .Cast<Level>()
-        .FirstOrDefault(l => l.Name == space.LevelName);
-
-                    var placedOutlets = new List<FamilyInstance>();
-                    foreach (var outlet in outletData)
+                    foreach (var od in outletData)
                     {
-                        XYZ locationPoint = new XYZ(outlet.X, outlet.Y, outlet.Z);
+                        XYZ desiredPoint = new XYZ(od.X, od.Y, od.Z);
+                        Wall hostWall = GetNearestWall(doc, desiredPoint);
 
-                        // Find nearest wall to the outlet location
-                        Wall hostWall = GetNearestWall(doc, locationPoint);
 
-                        if (hostWall != null)
+                        // nearest wall and projection
+                        if (hostWall == null)
                         {
-                            XYZ wallPoint = ProjectPointToWall(locationPoint, hostWall);
+                            TaskDialog.Show("Warning", $"No wall found near outlet {od.Name}");
+                            continue;
+                        }
 
-                            // Get direction toward room interior
-                            XYZ interiorDirection = GetInteriorDirection(hostWall, space, doc);
-                            XYZ finalPoint = wallPoint + (interiorDirection * 0.1); // 1.2" offset
-                            finalPoint = new XYZ(finalPoint.X, finalPoint.Y, locationPoint.Z);
+                        XYZ wallPoint = ProjectPointToWall(desiredPoint, hostWall);
+                        XYZ interiorDir = GetInteriorDirection(hostWall, space, doc);
+                        XYZ finalPoint = new XYZ(wallPoint.X, wallPoint.Y, desiredPoint.Z) + interiorDir * 0.1; // small offset
+                        // DEBUG INFORMATION
+                        string debugMsg = $"Outlet {od.Name} Debug:\n";
+                        debugMsg += $"Desired Point: ({od.X:F1}, {od.Y:F1}, {od.Z:F1})\n";
+                        debugMsg += $"Wall Point: ({wallPoint.X:F1}, {wallPoint.Y:F1}, {wallPoint.Z:F1})\n";
+                        debugMsg += $"Interior Direction: ({interiorDir.X:F2}, {interiorDir.Y:F2}, {interiorDir.Z:F2})\n";
+                        debugMsg += $"Final Point: ({finalPoint.X:F1}, {finalPoint.Y:F1}, {finalPoint.Z:F1})\n";
+                        TaskDialog.Show($"Outlet {od.Name} Debug", debugMsg);
+                        TaskDialog.Show($"Outlet {od.Name} Debug", debugMsg);
 
-                            //FamilyInstance outletInstance = doc.Create.NewFamilyInstance(
-                            //    finalPoint,
-                            //    outletSymbol,
-                            //    roomLevel,  // Assign to room's level
-                            //    StructuralType.NonStructural
-                            //);
-                            FamilyInstance outletInstance;
+                        FamilyInstance fi = null;
 
-                            // If the family is wall-hosted, use the overload with host
-                            if (outletSymbol.Family.FamilyPlacementType == FamilyPlacementType.OneLevelBasedHosted)
+                        // Try host-based placement first (works for typical wall-hosted families)
+                        try
+                        {
+                            fi = doc.Create.NewFamilyInstance(
+                                finalPoint,
+                                outletSymbol,
+                                hostWall,
+                                roomLevel,
+                                StructuralType.NonStructural);
+                        }
+                        catch
+                        {
+                            // host-based failed — try face-based on the interior face
+                            Reference faceRef = GetInteriorFaceReference(hostWall, roomCenter);
+                            if (faceRef != null)
                             {
-                                outletInstance = doc.Create.NewFamilyInstance(
-                                    finalPoint,
-                                    outletSymbol,
-                                    hostWall,
-                                    roomLevel,
-                                    StructuralType.NonStructural
-                                );
-                            =
-                                // Rotate the outlet to face the room interior
-                                XYZ wallDir = (hostWall.Orientation).Normalize(); // Wall outward normal
-                                XYZ facingDir = GetInteriorDirection(hostWall, space, doc); // Already have this helper
+                                try
+                                {
+                                    // face-based overload: (Reference, XYZ, XYZ, FamilySymbol)
+                                    // use Z as the "up" direction
+                                    fi = doc.Create.NewFamilyInstance(faceRef, finalPoint, XYZ.BasisZ, outletSymbol);
 
-                                // Compute rotation axis (vertical axis through placement point)
-                                Line axis = Line.CreateBound(finalPoint, finalPoint + XYZ.BasisZ);
-
-                                double angle = wallDir.AngleTo(facingDir);
-
-                                // Make sure the rotation goes in the correct direction
-                                if (wallDir.CrossProduct(facingDir).Z < 0)
-                                    angle = -angle;
-
-                                ElementTransformUtils.RotateElement(doc, outletInstance.Id, axis, angle);
+                                    // Ensure level param is set when possible
+                                    Parameter lvlParam = fi.get_Parameter(BuiltInParameter.FAMILY_LEVEL_PARAM);
+                                    if (lvlParam != null && !lvlParam.IsReadOnly)
+                                        lvlParam.Set(roomLevel.Id);
+                                }
+                                catch
+                                {
+                                    // last fallback: non-hosted placement
+                                    try
+                                    {
+                                        fi = doc.Create.NewFamilyInstance(finalPoint, outletSymbol, roomLevel, StructuralType.NonStructural);
+                                    }
+                                    catch
+                                    {
+                                        fi = null;
+                                    }
+                                }
                             }
                             else
                             {
-                                // Non-hosted (e.g., furniture-type test families)
-                                outletInstance = doc.Create.NewFamilyInstance(
-                                    finalPoint,
-                                    outletSymbol,
-                                    roomLevel,
-                                    StructuralType.NonStructural
-                                );
-                            }
-
-
-                            // Set outlet name/mark if provided
-                            if (!string.IsNullOrEmpty(outlet.Name))
-                            {
-                                Parameter markParam = outletInstance.get_Parameter(BuiltInParameter.ALL_MODEL_MARK);
-                                if (markParam != null && !markParam.IsReadOnly)
+                                // no face ref, fallback to non-hosted
+                                try
                                 {
-                                    markParam.Set(outlet.Name);
+                                    fi = doc.Create.NewFamilyInstance(finalPoint, outletSymbol, roomLevel, StructuralType.NonStructural);
+                                }
+                                catch
+                                {
+                                    fi = null;
                                 }
                             }
+                        }
 
-                            placedOutlets.Add(outletInstance);
-                        }
-                        else
+                        if (fi == null) continue;
+
+                        // optional mark
+                        if (!string.IsNullOrEmpty(od.Name))
                         {
-                            TaskDialog.Show("Warning", $"No wall found near outlet {outlet.Name}");
+                            var mark = fi.get_Parameter(BuiltInParameter.ALL_MODEL_MARK);
+                            if (mark != null && !mark.IsReadOnly) mark.Set(od.Name);
                         }
+
+                        // enforce facing into the room (geometric rotation fallback)
+                        FixFacingToRoom(doc, fi, space);
+
+                        placed++;
                     }
 
                     trans.Commit();
-                    TaskDialog.Show("Success", $"Successfully placed {placedOutlets.Count} outlets");
-                    return true;
                 }
                 catch (Exception ex)
                 {
@@ -292,7 +324,141 @@ namespace NEC_AI_V1
                     return false;
                 }
             }
+
+            TaskDialog.Show("Success", $"Successfully placed {placed} outlets");
+            return true;
         }
+
+        // --- HELPER 2: FixFacingToRoom (rotation fallback only) ---
+        private void FixFacingToRoom(Document doc, FamilyInstance fi, SpaceRoomInfo space)
+        {
+            if (fi == null) return;
+
+            var lp = fi.Location as LocationPoint;
+            if (lp == null) return;
+
+            XYZ p = lp.Point;
+            XYZ roomCenter = CalculateRoomCenter(space, doc);
+            if (roomCenter.IsZeroLength()) return;
+
+            XYZ toRoom = (roomCenter - p);
+            if (toRoom.IsZeroLength()) return;
+            toRoom = toRoom.Normalize();
+
+            XYZ facing = fi.FacingOrientation;
+            if (facing == null || facing.IsZeroLength()) return;
+            facing = facing.Normalize();
+
+            double angle = facing.AngleTo(toRoom);
+            TaskDialog.Show("Rotation Debug",
+               $"Facing: ({facing.X:F2}, {facing.Y:F2})\n" +
+               $"To Room: ({toRoom.X:F2}, {toRoom.Y:F2})\n" +
+               $"Angle: {angle:F2} radians\n" +
+               $"Needs rotation: {angle > Math.PI / 2.0}");
+
+            // Calculate exact rotation needed to face the room
+            try
+            {
+                // Calculate the angle we need to rotate to face the room
+                double currentAngle = Math.Atan2(facing.Y, facing.X);
+                double targetAngle = Math.Atan2(toRoom.Y, toRoom.X);
+                double rotationAngle = targetAngle - currentAngle;
+
+                // Normalize angle to [-π, π] range
+                while (rotationAngle > Math.PI) rotationAngle -= 2 * Math.PI;
+                while (rotationAngle < -Math.PI) rotationAngle += 2 * Math.PI;
+
+                // Only rotate if the angle difference is significant (more than 10 degrees)
+                if (Math.Abs(rotationAngle) > Math.PI / 18.0) // 10 degrees
+                {
+                    Line axis = Line.CreateBound(p, p + XYZ.BasisZ);
+                    ElementTransformUtils.RotateElement(doc, fi.Id, axis, rotationAngle);
+
+                    TaskDialog.Show("Rotation Applied",
+                        $"Rotated {rotationAngle * 180 / Math.PI:F1} degrees");
+                }
+            }
+            catch
+            {
+                // swallow rotation errors; leave instance as placed
+            }
+        }
+        // --- HELPER 1: GetInteriorFaceReference ---
+        private Reference GetInteriorFaceReference(Wall wall, XYZ roomCenter)
+        {
+            try
+            {
+                // Get all interior faces
+                IList<Reference> interiorRefs = HostObjectUtils.GetSideFaces(wall, ShellLayerType.Interior);
+
+                //debug how many interior faces found
+                TaskDialog.Show("Face Debug", $"Interior faces found: {interiorRefs?.Count ?? 0}");
+
+                if (interiorRefs == null || interiorRefs.Count == 0)
+                {
+                    // Fallback to exterior if no interior faces
+                    IList<Reference> exteriorRefs = HostObjectUtils.GetSideFaces(wall, ShellLayerType.Exterior);
+                    return exteriorRefs?.FirstOrDefault();
+                }
+
+                // Single face wall - use it
+                if (interiorRefs.Count == 1)
+                {
+                    return interiorRefs[0];
+                }
+
+                // COMPOUND WALL - Multiple interior faces
+                // Find the face closest to the room center
+                Reference bestFace = null;
+                double closestDistance = double.MaxValue;
+
+                foreach (Reference faceRef in interiorRefs)
+                {
+                    try
+                    {
+                        // Get the actual face geometry
+                        GeometryObject geoObj = wall.GetGeometryObjectFromReference(faceRef);
+                        if (geoObj is Face face)
+                        {
+                            // Get center point of this face
+                            BoundingBoxUV bbox = face.GetBoundingBox();
+                            UV centerUV = new UV(
+                                (bbox.Min.U + bbox.Max.U) / 2,
+                                (bbox.Min.V + bbox.Max.V) / 2
+                            );
+                            XYZ faceCenter = face.Evaluate(centerUV);
+
+                            // Calculate distance to room center
+                            double distance = faceCenter.DistanceTo(roomCenter);
+
+                            if (distance < closestDistance)
+                            {
+                                closestDistance = distance;
+                                bestFace = faceRef;
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // Skip problematic faces
+                        continue;
+                    }
+                }
+
+                // Debug info for compound walls
+                TaskDialog.Show("Compound Wall Debug",
+                    $"Wall has {interiorRefs.Count} interior faces\n" +
+                    $"Selected face at distance: {closestDistance:F2}");
+
+                return bestFace ?? interiorRefs[0]; // Fallback to first face if calculation fails
+            }
+            catch
+            {
+                return null;
+            }
+        
+        }
+
         // CHANGE 6: Added helper methods for room type detection and outlet generation
         private bool IsBedroomSpace(string spaceName)
         {
@@ -302,19 +468,17 @@ namespace NEC_AI_V1
 
         private List<OutletData> GenerateBedroomOutlets(SpaceRoomInfo space)
         {
-            // Simple outlet generation based on room - in real implementation, 
-            // you'd calculate based on room geometry and furniture location
+            // Use coordinates closer to the actual room center (-9.1, 11.6)
             return new List<OutletData>
             {
-                new OutletData { X = 0, Y = 0, Z = 0, Name = "OUT_00" },
-                new OutletData { X = 1.0, Y = 10.0, Z = 1.5, Name = "OUT_01" },
-                new OutletData { X = 5.0, Y = 10.0, Z = 1.5, Name = "OUT_02" },
-                new OutletData { X = 10.0, Y = 15.0, Z = 1.5, Name = "OUT_03" },
-                new OutletData { X = 15.0, Y = 12.0, Z = 1.5, Name = "OUT_04" },
-                new OutletData { X = 23.117118845, Y = 13.257541451, Z = 3.758005167, Name = "OUT_05" },
-                new OutletData { X = 23.117118845, Y = 9.962508272, Z = 0.738663456, Name = "OUT_06" }
+                new OutletData { X = -8.0, Y = 12.0, Z = 1.5, Name = "OUT_01" },
+                new OutletData { X = -10.0, Y = 10.0, Z = 1.5, Name = "OUT_02" },
+                new OutletData { X = -7.0, Y = 14.0, Z = 1.5, Name = "OUT_03" },
+                new OutletData { X = -11.0, Y = 13.0, Z = 1.5, Name = "OUT_04" },
+                new OutletData { X = -9.0, Y = 9.0, Z = 1.5, Name = "OUT_05" },
+                new OutletData { X = -8.5, Y = 15.0, Z = 1.5, Name = "OUT_06" }
             };
-        }
+         }
         //RANDOM NOTES
         //No need for name, just familyname as name is often dimensions
         //sometimes type will say the name but most times it just is the dimensions
@@ -385,23 +549,48 @@ namespace NEC_AI_V1
         }
         private XYZ GetInteriorDirection(Wall wall, SpaceRoomInfo space, Document doc)
         {
-            // Calculate room center from furniture/elements
+            LocationCurve wallLocation = wall.Location as LocationCurve;
+            Curve wallCurve = wallLocation.Curve;
+
+            // Get wall direction vector
+            XYZ wallDirection = (wallCurve.GetEndPoint(1) - wallCurve.GetEndPoint(0)).Normalize();
+
+            // Get both possible normal directions (perpendicular to wall)
+            XYZ normal1 = XYZ.BasisZ.CrossProduct(wallDirection).Normalize();
+            XYZ normal2 = normal1.Negate();
+
+            // Test point on wall
+            XYZ wallPoint = wallCurve.Evaluate(0.5, true);
+
+            // Test both directions - see which one points toward room elements
             XYZ roomCenter = CalculateRoomCenter(space, doc);
 
-            // Get wall centerline point
-            LocationCurve wallLocation = wall.Location as LocationCurve;
-            XYZ wallPoint = wallLocation.Curve.Evaluate(0.5, true); // Midpoint
+            XYZ testPoint1 = wallPoint + (normal1 * 1.0); // 1 foot in direction 1
+            XYZ testPoint2 = wallPoint + (normal2 * 1.0); // 1 foot in direction 2
 
-            // Direction from wall toward room center
-            XYZ directionToRoom = (roomCenter - wallPoint).Normalize();
+            // Choose direction that gets closer to room center
+            double dist1 = testPoint1.DistanceTo(roomCenter);
+            double dist2 = testPoint2.DistanceTo(roomCenter);
 
-            return directionToRoom;
+            XYZ interiorDirection = (dist1 < dist2) ? normal1 : normal2;
+
+            // DEBUG
+            string debugMsg = $"Wall Normal Test:\n";
+            debugMsg += $"Wall Point: ({wallPoint.X:F1}, {wallPoint.Y:F1})\n";
+            debugMsg += $"Room Center: ({roomCenter.X:F1}, {roomCenter.Y:F1})\n";
+            debugMsg += $"Normal1: ({normal1.X:F2}, {normal1.Y:F2}) - Distance: {dist1:F2}\n";
+            debugMsg += $"Normal2: ({normal2.X:F2}, {normal2.Y:F2}) - Distance: {dist2:F2}\n";
+            debugMsg += $"Chosen: ({interiorDirection.X:F2}, {interiorDirection.Y:F2})";
+            TaskDialog.Show("Wall Normal Debug", debugMsg);
+
+            return interiorDirection;
         }
 
         private XYZ CalculateRoomCenter(SpaceRoomInfo space, Document doc)
         {
             XYZ totalPosition = XYZ.Zero;
             int count = 0;
+            string debugInfo = "Room Center Calculation:\n";
 
             foreach (var elementId in space.ContainedElements)
             {
@@ -410,11 +599,18 @@ namespace NEC_AI_V1
                 {
                     totalPosition = totalPosition.Add(locPoint.Point);
                     count++;
+                    debugInfo += $"Element: {element.Name} at ({locPoint.Point.X:F1}, {locPoint.Point.Y:F1})\n";
                 }
             }
 
-            return count > 0 ? totalPosition.Divide(count) : XYZ.Zero;
+            XYZ roomCenter = count > 0 ? totalPosition.Divide(count) : XYZ.Zero;
+            debugInfo += $"Final Room Center: ({roomCenter.X:F1}, {roomCenter.Y:F1}, {roomCenter.Z:F1})\n";
+            debugInfo += $"Total elements used: {count}";
+
+            TaskDialog.Show("Room Center Debug", debugInfo);
+            return roomCenter;
         }
+        // ADD THIS METHOD TOO
         private XYZ ProjectPointToWall(XYZ point, Wall wall)
         {
             LocationCurve locationCurve = wall.Location as LocationCurve;
