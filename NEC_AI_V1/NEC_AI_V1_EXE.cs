@@ -242,53 +242,30 @@ namespace NEC_AI_V1
                         debugMsg += $"Interior Direction: ({interiorDir.X:F2}, {interiorDir.Y:F2}, {interiorDir.Z:F2})\n";
                         debugMsg += $"Final Point: ({finalPoint.X:F1}, {finalPoint.Y:F1}, {finalPoint.Z:F1})\n";
                         TaskDialog.Show($"Outlet {od.Name} Debug", debugMsg);
-                        TaskDialog.Show($"Outlet {od.Name} Debug", debugMsg);
-
                         FamilyInstance fi = null;
 
-                        // Try host-based placement first (works for typical wall-hosted families)
-                        try
-                        {
-                            fi = doc.Create.NewFamilyInstance(
-                                finalPoint,
-                                outletSymbol,
-                                hostWall,
-                                roomLevel,
-                                StructuralType.NonStructural);
-                        }
-                        catch
-                        {
-                            // host-based failed — try face-based on the interior face
-                            Reference faceRef = GetInteriorFaceReference(hostWall, roomCenter);
-                            if (faceRef != null)
-                            {
-                                try
-                                {
-                                    // face-based overload: (Reference, XYZ, XYZ, FamilySymbol)
-                                    // use Z as the "up" direction
-                                    fi = doc.Create.NewFamilyInstance(faceRef, finalPoint, XYZ.BasisZ, outletSymbol);
 
-                                    // Ensure level param is set when possible
-                                    Parameter lvlParam = fi.get_Parameter(BuiltInParameter.FAMILY_LEVEL_PARAM);
-                                    if (lvlParam != null && !lvlParam.IsReadOnly)
-                                        lvlParam.Set(roomLevel.Id);
-                                }
-                                catch
-                                {
-                                    // last fallback: non-hosted placement
-                                    try
-                                    {
-                                        fi = doc.Create.NewFamilyInstance(finalPoint, outletSymbol, roomLevel, StructuralType.NonStructural);
-                                    }
-                                    catch
-                                    {
-                                        fi = null;
-                                    }
-                                }
-                            }
-                            else
+                        // Use face-based placement directly
+                        Reference faceRef = GetInteriorFaceReference(hostWall, roomCenter);
+                        if (faceRef != null)
+                        {
+                            try
                             {
-                                // no face ref, fallback to non-hosted
+                                // face-based overload: (Reference, XYZ, XYZ, FamilySymbol)
+                                fi = doc.Create.NewFamilyInstance(faceRef, finalPoint, XYZ.BasisZ, outletSymbol);
+
+                                // Ensure level param is set when possible
+                                Parameter lvlParam = fi.get_Parameter(BuiltInParameter.FAMILY_LEVEL_PARAM);
+                                if (lvlParam != null && !lvlParam.IsReadOnly)
+                                    lvlParam.Set(roomLevel.Id);
+
+                                TaskDialog.Show("Placement Method", "SUCCESS: Face-based placement used");
+                            }
+                            catch (Exception ex)
+                            {
+                                TaskDialog.Show("Face-based Failed", $"Face-based placement failed: {ex.Message}");
+
+                                // fallback: non-hosted placement
                                 try
                                 {
                                     fi = doc.Create.NewFamilyInstance(finalPoint, outletSymbol, roomLevel, StructuralType.NonStructural);
@@ -297,6 +274,18 @@ namespace NEC_AI_V1
                                 {
                                     fi = null;
                                 }
+                            }
+                        }
+                        else
+                        {
+                            // no face ref, fallback to non-hosted
+                            try
+                            {
+                                fi = doc.Create.NewFamilyInstance(finalPoint, outletSymbol, roomLevel, StructuralType.NonStructural);
+                            }
+                            catch
+                            {
+                                fi = null;
                             }
                         }
 
@@ -386,6 +375,7 @@ namespace NEC_AI_V1
         // --- HELPER 1: GetInteriorFaceReference ---
         private Reference GetInteriorFaceReference(Wall wall, XYZ roomCenter)
         {
+            TaskDialog.Show("Face Method Called", "GetInteriorFaceReference is being called");
             try
             {
                 // Get all interior faces
