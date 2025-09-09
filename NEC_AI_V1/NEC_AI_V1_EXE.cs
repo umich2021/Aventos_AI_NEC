@@ -224,13 +224,6 @@ namespace NEC_AI_V1
                         XYZ desiredPoint = new XYZ(od.X, od.Y, od.Z);
                         Wall hostWall = GetNearestWall(doc, desiredPoint);
 
-                            //FamilyInstance outletInstance = doc.Create.NewFamilyInstance(
-                            //    finalPoint,
-                            //    outletSymbol,
-                            //    roomLevel,  // Assign to room's level
-                            //    StructuralType.NonStructural
-                            //);
-                            FamilyInstance outletInstance;
 
                         // nearest wall and projection
                         if (hostWall == null)
@@ -241,7 +234,7 @@ namespace NEC_AI_V1
 
                         XYZ wallPoint = ProjectPointToWall(desiredPoint, hostWall);
                         XYZ interiorDir = GetInteriorDirection(hostWall, space, doc);
-                        XYZ finalPoint = new XYZ(wallPoint.X, wallPoint.Y, desiredPoint.Z) + interiorDir * 0.1; // small offset
+                        XYZ finalPoint = new XYZ(wallPoint.X, wallPoint.Y, desiredPoint.Z); // + interiorDir * 1; // small offset
                         // DEBUG INFORMATION
                         string debugMsg = $"Outlet {od.Name} Debug:\n";
                         debugMsg += $"Desired Point: ({od.X:F1}, {od.Y:F1}, {od.Z:F1})\n";
@@ -256,30 +249,36 @@ namespace NEC_AI_V1
                         Reference faceRef = GetInteriorFaceReference(hostWall, roomCenter);
                         if (faceRef != null)
                         {
+                            FamilyInstance outletInstance = null;
                             try
                             {
-                                // face-based overload: (Reference, XYZ, XYZ, FamilySymbol)
-                                fi = doc.Create.NewFamilyInstance(faceRef, finalPoint, XYZ.BasisZ, outletSymbol);
+                                outletInstance = doc.Create.NewFamilyInstance(
+                                    finalPoint,
+                                    outletSymbol,
+                                    hostWall,
+                                    roomLevel,
+                                    StructuralType.NonStructural
+                                );
+                                fi = outletInstance;  // ADD THIS LINE
 
                                 // Ensure level param is set when possible
-                                Parameter lvlParam = fi.get_Parameter(BuiltInParameter.FAMILY_LEVEL_PARAM);
+                                Parameter lvlParam = outletInstance.get_Parameter(BuiltInParameter.FAMILY_LEVEL_PARAM);
                                 if (lvlParam != null && !lvlParam.IsReadOnly)
                                     lvlParam.Set(roomLevel.Id);
 
-                                TaskDialog.Show("Placement Method", "SUCCESS: Face-based placement used");
+                                TaskDialog.Show("Placement Method", "SUCCESS: Wall-hosted placement used");
                             }
                             catch (Exception ex)
                             {
-                                TaskDialog.Show("Face-based Failed", $"Face-based placement failed: {ex.Message}");
-
+                                TaskDialog.Show("Wall-hosted Failed", $"Wall-hosted placement failed: {ex.Message}");
                                 // fallback: non-hosted placement
                                 try
                                 {
-                                    fi = doc.Create.NewFamilyInstance(finalPoint, outletSymbol, roomLevel, StructuralType.NonStructural);
+                                    outletInstance = doc.Create.NewFamilyInstance(finalPoint, outletSymbol, roomLevel, StructuralType.NonStructural);
                                 }
                                 catch
                                 {
-                                    fi = null;
+                                    outletInstance = null;
                                 }
                             }
                         }
