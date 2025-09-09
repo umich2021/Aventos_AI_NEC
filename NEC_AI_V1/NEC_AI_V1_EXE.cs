@@ -259,7 +259,21 @@ namespace NEC_AI_V1
                                     roomLevel,
                                     StructuralType.NonStructural
                                 );
-                                fi = outletInstance;  // ADD THIS LINE
+                                if (outletInstance != null)
+                                {
+                                    XYZ outletLocation = ((LocationPoint)outletInstance.Location).Point;
+                                    XYZ wallCenter = ProjectPointToWall(outletLocation, hostWall);
+
+                                    debugMsg = $"Outlet Placement Debug:\n";
+                                    debugMsg += $"Wall Center: ({wallCenter.X:F1}, {wallCenter.Y:F1})\n";
+                                    debugMsg += $"Outlet Location: ({outletLocation.X:F1}, {outletLocation.Y:F1})\n";
+                                    debugMsg += $"Room Center: ({roomCenter.X:F1}, {roomCenter.Y:F1})\n";
+                                    debugMsg += $"Distance Outlet->Room: {outletLocation.DistanceTo(roomCenter):F2}\n";
+                                    debugMsg += $"Distance Wall->Room: {wallCenter.DistanceTo(roomCenter):F2}\n";
+
+                                    TaskDialog.Show("Outlet Placement Result", debugMsg);
+
+                                    fi = outletInstance;  // ADD THIS LINE
 
                                 // Ensure level param is set when possible
                                 Parameter lvlParam = outletInstance.get_Parameter(BuiltInParameter.FAMILY_LEVEL_PARAM);
