@@ -224,6 +224,13 @@ namespace NEC_AI_V1
                         XYZ desiredPoint = new XYZ(od.X, od.Y, od.Z);
                         Wall hostWall = GetNearestWall(doc, desiredPoint);
 
+                            //FamilyInstance outletInstance = doc.Create.NewFamilyInstance(
+                            //    finalPoint,
+                            //    outletSymbol,
+                            //    roomLevel,  // Assign to room's level
+                            //    StructuralType.NonStructural
+                            //);
+                            FamilyInstance outletInstance;
 
                         // nearest wall and projection
                         if (hostWall == null)
