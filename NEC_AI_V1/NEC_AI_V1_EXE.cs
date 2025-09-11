@@ -233,13 +233,13 @@ namespace NEC_AI_V1
                         }
 
                         XYZ wallPoint = ProjectPointToWall(desiredPoint, hostWall);
-                        XYZ interiorDir = GetInteriorDirection(hostWall, space, doc);
+                        //XYZ interiorDir = GetInteriorDirection(hostWall, space, doc);
                         XYZ finalPoint = new XYZ(wallPoint.X, wallPoint.Y, desiredPoint.Z); // + interiorDir * 1; // small offset
                         // DEBUG INFORMATION
                         string debugMsg = $"Outlet {od.Name} Debug:\n";
                         debugMsg += $"Desired Point: ({od.X:F1}, {od.Y:F1}, {od.Z:F1})\n";
                         debugMsg += $"Wall Point: ({wallPoint.X:F1}, {wallPoint.Y:F1}, {wallPoint.Z:F1})\n";
-                        debugMsg += $"Interior Direction: ({interiorDir.X:F2}, {interiorDir.Y:F2}, {interiorDir.Z:F2})\n";
+                       // debugMsg += $"Interior Direction: ({interiorDir.X:F2}, {interiorDir.Y:F2}, {interiorDir.Z:F2})\n";
                         debugMsg += $"Final Point: ({finalPoint.X:F1}, {finalPoint.Y:F1}, {finalPoint.Z:F1})\n";
                         TaskDialog.Show($"Outlet {od.Name} Debug", debugMsg);
                         FamilyInstance fi = null;
@@ -274,18 +274,24 @@ namespace NEC_AI_V1
                                     TaskDialog.Show("Outlet Placement Result", debugMsg);
 
                                     fi = outletInstance;  // ADD THIS LINE
+                                }
+
 
                                 // Ensure level param is set when possible
                                 Parameter lvlParam = outletInstance.get_Parameter(BuiltInParameter.FAMILY_LEVEL_PARAM);
                                 if (lvlParam != null && !lvlParam.IsReadOnly)
+                                {
                                     lvlParam.Set(roomLevel.Id);
 
-                                TaskDialog.Show("Placement Method", "SUCCESS: Wall-hosted placement used");
+                                    TaskDialog.Show("Placement Method", "SUCCESS: Wall-hosted placement used");
+                                }
                             }
+
                             catch (Exception ex)
                             {
                                 TaskDialog.Show("Wall-hosted Failed", $"Wall-hosted placement failed: {ex.Message}");
                                 // fallback: non-hosted placement
+                                //won't ever be used btw cuz receptcales are hosted placed elements
                                 try
                                 {
                                     outletInstance = doc.Create.NewFamilyInstance(finalPoint, outletSymbol, roomLevel, StructuralType.NonStructural);
