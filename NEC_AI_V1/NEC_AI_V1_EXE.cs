@@ -345,62 +345,6 @@ namespace NEC_AI_V1
             TaskDialog.Show("Success", $"Successfully placed {placed} outlets");
             return true;
         }
-
-        //// --- HELPER 2: FixFacingToRoom (rotation fallback only) ---
-        //private void FixFacingToRoom(Document doc, FamilyInstance fi, SpaceRoomInfo space)
-        //{
-        //    if (fi == null) return;
-
-        //    var lp = fi.Location as LocationPoint;
-        //    if (lp == null) return;
-
-        //    XYZ p = lp.Point;
-        //    XYZ roomCenter = CalculateRoomCenter(space, doc);
-        //    if (roomCenter.IsZeroLength()) return;
-
-        //    XYZ toRoom = (roomCenter - p);
-        //    if (toRoom.IsZeroLength()) return;
-        //    toRoom = toRoom.Normalize();
-
-        //    XYZ facing = fi.FacingOrientation;
-        //    if (facing == null || facing.IsZeroLength()) return;
-        //    facing = facing.Normalize();
-
-        //    double angle = facing.AngleTo(toRoom);
-        //    TaskDialog.Show("Rotation Debug",
-        //       $"Facing: ({facing.X:F2}, {facing.Y:F2})\n" +
-        //       $"To Room: ({toRoom.X:F2}, {toRoom.Y:F2})\n" +
-        //       $"Angle: {angle:F2} radians\n" +
-        //       $"Needs rotation: {angle > Math.PI / 2.0}");
-
-        //    // Calculate exact rotation needed to face the room
-        //    try
-        //    {
-        //        // Calculate the angle we need to rotate to face the room
-        //        double currentAngle = Math.Atan2(facing.Y, facing.X);
-        //        double targetAngle = Math.Atan2(toRoom.Y, toRoom.X);
-        //        double rotationAngle = targetAngle - currentAngle;
-
-        //        // Normalize angle to [-π, π] range
-        //        while (rotationAngle > Math.PI) rotationAngle -= 2 * Math.PI;
-        //        while (rotationAngle < -Math.PI) rotationAngle += 2 * Math.PI;
-
-        //        // Only rotate if the angle difference is significant (more than 10 degrees)
-        //        if (Math.Abs(rotationAngle) > Math.PI / 18.0) // 10 degrees
-        //        {
-        //            Line axis = Line.CreateBound(p, p + XYZ.BasisZ);
-        //            ElementTransformUtils.RotateElement(doc, fi.Id, axis, rotationAngle);
-
-        //            TaskDialog.Show("Rotation Applied",
-        //                $"Rotated {rotationAngle * 180 / Math.PI:F1} degrees");
-        //        }
-        //    }
-        //    catch
-        //    {
-        //        // swallow rotation errors; leave instance as placed
-        //    }
-        //}
-        // --- HELPER 1: GetInteriorFaceReference ---
         private Reference GetInteriorFaceReference(Wall wall, XYZ roomCenter)
         {
             TaskDialog.Show("Face Method Called", "GetInteriorFaceReference is being called");
@@ -422,7 +366,6 @@ namespace NEC_AI_V1
                 // Single face wall - use it
                 if (interiorRefs.Count == 1)
                 {
-                    //return interiorRefs[0];
 
                     Reference interiorRef = interiorRefs[0];
 
@@ -514,8 +457,6 @@ namespace NEC_AI_V1
                 new OutletData { X = 2, Y = -16.3, Z = 1.5, Name = "OUT_02" },
                 new OutletData { X = 5, Y = 3.5, Z = 1.5, Name = "OUT_03" },
                 new OutletData { X = 5, Y = -4, Z = 1.5, Name = "OUT_04" },
-                //new OutletData { X = -9.0, Y = 9.0, Z = 1.5, Name = "OUT_05" },
-                //new OutletData { X = -8.5, Y = 15.0, Z = 1.5, Name = "OUT_06" }
             };
         }
         private string GetElementDetails(Element element)
@@ -582,45 +523,6 @@ namespace NEC_AI_V1
             }
             return nearestWall;
         }
-        private XYZ GetInteriorDirection(Wall wall, SpaceRoomInfo space, Document doc)
-        {
-            LocationCurve wallLocation = wall.Location as LocationCurve;
-            Curve wallCurve = wallLocation.Curve;
-
-            // Get wall direction vector
-            XYZ wallDirection = (wallCurve.GetEndPoint(1) - wallCurve.GetEndPoint(0)).Normalize();
-
-            // Get both possible normal directions (perpendicular to wall)
-            XYZ normal1 = XYZ.BasisZ.CrossProduct(wallDirection).Normalize();
-            XYZ normal2 = normal1.Negate();
-
-            // Test point on wall
-            XYZ wallPoint = wallCurve.Evaluate(0.5, true);
-
-            // Test both directions - see which one points toward room elements
-            XYZ roomCenter = CalculateRoomCenter(space, doc);
-
-            XYZ testPoint1 = wallPoint + (normal1 * 1.0); // 1 foot in direction 1
-            XYZ testPoint2 = wallPoint + (normal2 * 1.0); // 1 foot in direction 2
-
-            // Choose direction that gets closer to room center
-            double dist1 = testPoint1.DistanceTo(roomCenter);
-            double dist2 = testPoint2.DistanceTo(roomCenter);
-
-            XYZ interiorDirection = (dist1 < dist2) ? normal1 : normal2;
-
-            // DEBUG
-            string debugMsg = $"Wall Normal Test:\n";
-            debugMsg += $"Wall Point: ({wallPoint.X:F1}, {wallPoint.Y:F1})\n";
-            debugMsg += $"Room Center: ({roomCenter.X:F1}, {roomCenter.Y:F1})\n";
-            debugMsg += $"Normal1: ({normal1.X:F2}, {normal1.Y:F2}) - Distance: {dist1:F2}\n";
-            debugMsg += $"Normal2: ({normal2.X:F2}, {normal2.Y:F2}) - Distance: {dist2:F2}\n";
-            debugMsg += $"Chosen: ({interiorDirection.X:F2}, {interiorDirection.Y:F2})";
-            TaskDialog.Show("Wall Normal Debug", debugMsg);
-
-            return interiorDirection;
-        }
-
         private XYZ CalculateRoomCenter(SpaceRoomInfo space, Document doc)
         {
             XYZ totalPosition = XYZ.Zero;
