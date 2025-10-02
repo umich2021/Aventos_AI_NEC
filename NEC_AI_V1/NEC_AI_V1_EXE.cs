@@ -92,7 +92,7 @@ namespace NEC_AI_V1
 
             spaceInfo += $"\nTOTAL ELEMENTS: {space.ContainedElements.Count}\n";
             
-            // CHANGE 3: Added outlet placement logic based on room type
+            //Added outlet placement logic based on room type
             if (IsBedroomSpace(space.Name))
             {
                 var outlets = GenerateBedroomOutlets(space);
@@ -110,7 +110,7 @@ namespace NEC_AI_V1
                 }
                 TaskDialog.Show("Room Boundary Debug", roomDebug);
                 //PlaceElectricalOutlets(doc, outlets, space, null, "Table-Coffee", "24\" x 24\" x 24\"");
-                PlaceElectricalOutlets(doc, outlets, space, null, "Outlet-Single", "Single");
+                PlaceElectricalOutlets(doc, outlets, space, null, "Face_outlet", "Face_outlet");
 
             }
 
@@ -235,6 +235,7 @@ namespace NEC_AI_V1
                         XYZ wallPoint = ProjectPointToWall(desiredPoint, hostWall);
                         //XYZ interiorDir = GetInteriorDirection(hostWall, space, doc);
                         XYZ finalPoint = new XYZ(wallPoint.X, wallPoint.Y, desiredPoint.Z); // + interiorDir * 1; // small offset
+                        finalPoint = desiredPoint;
                         // DEBUG INFORMATION
                         string debugMsg = $"Outlet {od.Name} Debug:\n";
                         debugMsg += $"Desired Point: ({od.X:F1}, {od.Y:F1}, {od.Z:F1})\n";
@@ -245,9 +246,13 @@ namespace NEC_AI_V1
                         FamilyInstance fi = null;
 
 
-                        // Use face-based placement directly
+                        // Use wall hosted-based placement directly
                         Reference faceRef = GetInteriorFaceReference(hostWall, roomCenter);
-                        if (faceRef != null)
+
+                        //below code puts the face reference on the outside, all things should be in exterior
+                        faceRef = HostObjectUtils.GetSideFaces(hostWall, ShellLayerType.Exterior).FirstOrDefault();
+
+                        if (faceRef != null)//changing this to == null from != null because i don't want face based
                         {
                             FamilyInstance outletInstance = null;
                             try
@@ -259,19 +264,26 @@ namespace NEC_AI_V1
                                     roomLevel,
                                     StructuralType.NonStructural
                                 );
+
                                 if (outletInstance != null)
                                 {
+                                    //TaskDialog.Show("wall hosted based placement", "wall hosted is now being used");
+
+                                    //uncomment bottom code if no work
                                     XYZ outletLocation = ((LocationPoint)outletInstance.Location).Point;
                                     XYZ wallCenter = ProjectPointToWall(outletLocation, hostWall);
+                                    XYZ outletFacing = outletInstance.FacingOrientation;
 
                                     debugMsg = $"Outlet Placement Debug:\n";
                                     debugMsg += $"Wall Center: ({wallCenter.X:F1}, {wallCenter.Y:F1})\n";
                                     debugMsg += $"Outlet Location: ({outletLocation.X:F1}, {outletLocation.Y:F1})\n";
+                                    debugMsg += $"outlet facing oreintation: ){outletFacing})";
                                     debugMsg += $"Room Center: ({roomCenter.X:F1}, {roomCenter.Y:F1})\n";
                                     debugMsg += $"Distance Outlet->Room: {outletLocation.DistanceTo(roomCenter):F2}\n";
                                     debugMsg += $"Distance Wall->Room: {wallCenter.DistanceTo(roomCenter):F2}\n";
 
-                                    TaskDialog.Show("Outlet Placement Result", debugMsg);
+                                    TaskDialog.Show("Outlet Placement Result-wall hosted", debugMsg);
+                                    
 
                                     fi = outletInstance;  // ADD THIS LINE
                                 }
@@ -487,18 +499,14 @@ namespace NEC_AI_V1
             // Use coordinates closer to the actual room center (-9.1, 11.6)
             return new List<OutletData>
             {
-                new OutletData { X = -8.0, Y = 12.0, Z = 1.5, Name = "OUT_01" },
-                new OutletData { X = -10.0, Y = 10.0, Z = 1.5, Name = "OUT_02" },
-                new OutletData { X = -7.0, Y = 14.0, Z = 1.5, Name = "OUT_03" },
-                new OutletData { X = -11.0, Y = 13.0, Z = 1.5, Name = "OUT_04" },
-                new OutletData { X = -9.0, Y = 9.0, Z = 1.5, Name = "OUT_05" },
-                new OutletData { X = -8.5, Y = 15.0, Z = 1.5, Name = "OUT_06" }
+                new OutletData { X = -13, Y = 0, Z = 1.5, Name = "OUT_01" },
+                new OutletData { X = 2, Y = -16.3, Z = 1.5, Name = "OUT_02" },
+                new OutletData { X = 5, Y = 3.5, Z = 1.5, Name = "OUT_03" },
+                new OutletData { X = 5, Y = -4, Z = 1.5, Name = "OUT_04" },
+                //new OutletData { X = -9.0, Y = 9.0, Z = 1.5, Name = "OUT_05" },
+                //new OutletData { X = -8.5, Y = 15.0, Z = 1.5, Name = "OUT_06" }
             };
-         }
-        //RANDOM NOTES
-        //No need for name, just familyname as name is often dimensions
-        //sometimes type will say the name but most times it just is the dimensions
-        //let's get category 
+        }
         private string GetElementDetails(Element element)
         {
             string details = $"• {element.Category?.Name ?? "No Category"}";
