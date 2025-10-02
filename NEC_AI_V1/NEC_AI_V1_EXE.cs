@@ -422,6 +422,27 @@ namespace NEC_AI_V1
                 // Single face wall - use it
                 if (interiorRefs.Count == 1)
                 {
+                    //return interiorRefs[0];
+
+                    Reference interiorRef = interiorRefs[0];
+
+                    // Check if this "interior" face is actually facing the room
+                    GeometryObject geoObj = wall.GetGeometryObjectFromReference(interiorRef);
+                    if (geoObj is Face face)
+                    {
+                        XYZ faceNormal = face.ComputeNormal(UV.Zero);
+                        XYZ wallCenter = ((LocationCurve)wall.Location).Curve.Evaluate(0.5, true);
+                        XYZ toRoom = (roomCenter - wallCenter).Normalize();
+
+                        // If normal points AWAY from room, use exterior face instead
+                        if (faceNormal.DotProduct(toRoom) < 0)
+                        {
+                            TaskDialog.Show("Wall Orientation", $"Wall {wall.Name} interior faces away from room, using exterior");
+                            IList<Reference> exteriorRefs = HostObjectUtils.GetSideFaces(wall, ShellLayerType.Exterior);
+                            return exteriorRefs?.FirstOrDefault();
+                        }
+                    }
+
                     return interiorRefs[0];
                 }
 
