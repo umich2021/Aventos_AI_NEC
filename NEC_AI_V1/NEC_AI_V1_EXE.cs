@@ -250,46 +250,36 @@ namespace NEC_AI_V1
                         Reference faceRef = GetInteriorFaceReference(hostWall, roomCenter);
 
                         //below code puts the face reference on the outside, all things should be in exterior
-                        faceRef = HostObjectUtils.GetSideFaces(hostWall, ShellLayerType.Exterior).FirstOrDefault();
-
-                        if (faceRef != null)//changing this to == null from != null because i don't want face based
+                        //faceRef = HostObjectUtils.GetSideFaces(hostWall, ShellLayerType.Exterior).FirstOrDefault();
+                        if (faceRef != null)
                         {
                             FamilyInstance outletInstance = null;
                             try
                             {
-                                outletInstance = doc.Create.NewFamilyInstance(
-                                    finalPoint,
-                                    outletSymbol,
-                                    hostWall,
-                                    roomLevel,
-                                    StructuralType.NonStructural
-                                );
+                                // For face-based placement, project point onto the face
+                                GeometryObject geoObj = hostWall.GetGeometryObjectFromReference(faceRef);
+                                Face face = geoObj as Face;
 
-                                if (outletInstance != null)
+                                if (face != null)
                                 {
-                                    //TaskDialog.Show("wall hosted based placement", "wall hosted is now being used");
+                                    IntersectionResult intResult = face.Project(wallPoint);
+                                    if (intResult != null)
+                                    {
+                                        UV uv = intResult.UVPoint;
+                                        XYZ facePoint = face.Evaluate(uv);
+                                        Transform faceTransform = face.ComputeDerivatives(uv);
 
-                                    //uncomment bottom code if no work
-                                    XYZ outletLocation = ((LocationPoint)outletInstance.Location).Point;
-                                    XYZ wallCenter = ProjectPointToWall(outletLocation, hostWall);
-                                    XYZ outletFacing = outletInstance.FacingOrientation;
-
-                                    debugMsg = $"Outlet Placement Debug:\n";
-                                    debugMsg += $"Wall Center: ({wallCenter.X:F1}, {wallCenter.Y:F1})\n";
-                                    debugMsg += $"Outlet Location: ({outletLocation.X:F1}, {outletLocation.Y:F1})\n";
-                                    debugMsg += $"outlet facing oreintation: ){outletFacing})";
-                                    debugMsg += $"Room Center: ({roomCenter.X:F1}, {roomCenter.Y:F1})\n";
-                                    debugMsg += $"Distance Outlet->Room: {outletLocation.DistanceTo(roomCenter):F2}\n";
-                                    debugMsg += $"Distance Wall->Room: {wallCenter.DistanceTo(roomCenter):F2}\n";
-
-                                    TaskDialog.Show("Outlet Placement Result-wall hosted", debugMsg);
-                                    
-
-                                    fi = outletInstance;  // ADD THIS LINE
+                                        // Create face-based instance
+                                        outletInstance = doc.Create.NewFamilyInstance(
+                                            faceRef,
+                                            facePoint,
+                                            faceTransform.BasisX,  // U direction on face
+                                            outletSymbol
+                                        );
+                                    }
                                 }
 
-
-                                // Ensure level param is set when possible
+                               // Ensure level param is set when possible
                                 Parameter lvlParam = outletInstance.get_Parameter(BuiltInParameter.FAMILY_LEVEL_PARAM);
                                 if (lvlParam != null && !lvlParam.IsReadOnly)
                                 {
@@ -337,7 +327,7 @@ namespace NEC_AI_V1
                         }
 
                         // enforce facing into the room (geometric rotation fallback)
-                        FixFacingToRoom(doc, fi, space);
+                        //FixFacingToRoom(doc, fi, space);
 
                         placed++;
                     }
@@ -356,60 +346,60 @@ namespace NEC_AI_V1
             return true;
         }
 
-        // --- HELPER 2: FixFacingToRoom (rotation fallback only) ---
-        private void FixFacingToRoom(Document doc, FamilyInstance fi, SpaceRoomInfo space)
-        {
-            if (fi == null) return;
+        //// --- HELPER 2: FixFacingToRoom (rotation fallback only) ---
+        //private void FixFacingToRoom(Document doc, FamilyInstance fi, SpaceRoomInfo space)
+        //{
+        //    if (fi == null) return;
 
-            var lp = fi.Location as LocationPoint;
-            if (lp == null) return;
+        //    var lp = fi.Location as LocationPoint;
+        //    if (lp == null) return;
 
-            XYZ p = lp.Point;
-            XYZ roomCenter = CalculateRoomCenter(space, doc);
-            if (roomCenter.IsZeroLength()) return;
+        //    XYZ p = lp.Point;
+        //    XYZ roomCenter = CalculateRoomCenter(space, doc);
+        //    if (roomCenter.IsZeroLength()) return;
 
-            XYZ toRoom = (roomCenter - p);
-            if (toRoom.IsZeroLength()) return;
-            toRoom = toRoom.Normalize();
+        //    XYZ toRoom = (roomCenter - p);
+        //    if (toRoom.IsZeroLength()) return;
+        //    toRoom = toRoom.Normalize();
 
-            XYZ facing = fi.FacingOrientation;
-            if (facing == null || facing.IsZeroLength()) return;
-            facing = facing.Normalize();
+        //    XYZ facing = fi.FacingOrientation;
+        //    if (facing == null || facing.IsZeroLength()) return;
+        //    facing = facing.Normalize();
 
-            double angle = facing.AngleTo(toRoom);
-            TaskDialog.Show("Rotation Debug",
-               $"Facing: ({facing.X:F2}, {facing.Y:F2})\n" +
-               $"To Room: ({toRoom.X:F2}, {toRoom.Y:F2})\n" +
-               $"Angle: {angle:F2} radians\n" +
-               $"Needs rotation: {angle > Math.PI / 2.0}");
+        //    double angle = facing.AngleTo(toRoom);
+        //    TaskDialog.Show("Rotation Debug",
+        //       $"Facing: ({facing.X:F2}, {facing.Y:F2})\n" +
+        //       $"To Room: ({toRoom.X:F2}, {toRoom.Y:F2})\n" +
+        //       $"Angle: {angle:F2} radians\n" +
+        //       $"Needs rotation: {angle > Math.PI / 2.0}");
 
-            // Calculate exact rotation needed to face the room
-            try
-            {
-                // Calculate the angle we need to rotate to face the room
-                double currentAngle = Math.Atan2(facing.Y, facing.X);
-                double targetAngle = Math.Atan2(toRoom.Y, toRoom.X);
-                double rotationAngle = targetAngle - currentAngle;
+        //    // Calculate exact rotation needed to face the room
+        //    try
+        //    {
+        //        // Calculate the angle we need to rotate to face the room
+        //        double currentAngle = Math.Atan2(facing.Y, facing.X);
+        //        double targetAngle = Math.Atan2(toRoom.Y, toRoom.X);
+        //        double rotationAngle = targetAngle - currentAngle;
 
-                // Normalize angle to [-π, π] range
-                while (rotationAngle > Math.PI) rotationAngle -= 2 * Math.PI;
-                while (rotationAngle < -Math.PI) rotationAngle += 2 * Math.PI;
+        //        // Normalize angle to [-π, π] range
+        //        while (rotationAngle > Math.PI) rotationAngle -= 2 * Math.PI;
+        //        while (rotationAngle < -Math.PI) rotationAngle += 2 * Math.PI;
 
-                // Only rotate if the angle difference is significant (more than 10 degrees)
-                if (Math.Abs(rotationAngle) > Math.PI / 18.0) // 10 degrees
-                {
-                    Line axis = Line.CreateBound(p, p + XYZ.BasisZ);
-                    ElementTransformUtils.RotateElement(doc, fi.Id, axis, rotationAngle);
+        //        // Only rotate if the angle difference is significant (more than 10 degrees)
+        //        if (Math.Abs(rotationAngle) > Math.PI / 18.0) // 10 degrees
+        //        {
+        //            Line axis = Line.CreateBound(p, p + XYZ.BasisZ);
+        //            ElementTransformUtils.RotateElement(doc, fi.Id, axis, rotationAngle);
 
-                    TaskDialog.Show("Rotation Applied",
-                        $"Rotated {rotationAngle * 180 / Math.PI:F1} degrees");
-                }
-            }
-            catch
-            {
-                // swallow rotation errors; leave instance as placed
-            }
-        }
+        //            TaskDialog.Show("Rotation Applied",
+        //                $"Rotated {rotationAngle * 180 / Math.PI:F1} degrees");
+        //        }
+        //    }
+        //    catch
+        //    {
+        //        // swallow rotation errors; leave instance as placed
+        //    }
+        //}
         // --- HELPER 1: GetInteriorFaceReference ---
         private Reference GetInteriorFaceReference(Wall wall, XYZ roomCenter)
         {
