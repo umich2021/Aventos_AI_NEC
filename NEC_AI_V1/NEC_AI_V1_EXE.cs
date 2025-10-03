@@ -281,6 +281,7 @@ namespace NEC_AI_V1
                                     if (intResult != null)
                                     {
                                         UV uv = intResult.UVPoint;
+                                        //XYZ facePoint = face.Evaluate(uv);
                                         XYZ initialfacePoint = face.Evaluate(uv);
                                         XYZ facePoint = new XYZ(initialfacePoint.X, initialfacePoint.Y, od.Z);
                                         TaskDialog.Show("facepoint is", facePoint.ToString());
@@ -293,22 +294,6 @@ namespace NEC_AI_V1
                                             faceTransform.BasisX,  // U direction on face
                                             outletSymbol
                                         );
-                                    }
-                                    // After creating the outlet instance
-                                    if (outletInstance != null)
-                                    {
-                                        // Set the elevation offset
-                                        Parameter elevParam = outletInstance.get_Parameter(BuiltInParameter.INSTANCE_ELEVATION_PARAM);
-                                        if (elevParam == null)
-                                            elevParam = outletInstance.get_Parameter(BuiltInParameter.INSTANCE_SILL_HEIGHT_PARAM);
-                                        if (elevParam == null)
-                                            elevParam = outletInstance.get_Parameter(BuiltInParameter.INSTANCE_FREE_HOST_OFFSET_PARAM);
-
-                                        if (elevParam != null && !elevParam.IsReadOnly)
-                                        {
-                                            elevParam.Set(od.Z); // Set to 1.5 feet
-                                        }
-                                        
                                     }
                                 }
 
