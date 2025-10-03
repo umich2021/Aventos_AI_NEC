@@ -1,5 +1,6 @@
 ﻿using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
+using Autodesk.Revit.DB.Architecture;
 using Autodesk.Revit.DB.Mechanical;
 using Autodesk.Revit.DB.Structure;
 using Autodesk.Revit.UI;
@@ -92,7 +93,6 @@ namespace NEC_AI_V1
 
             spaceInfo += $"\nTOTAL ELEMENTS: {space.ContainedElements.Count}\n";
             
-            //Added outlet placement logic based on room type
             if (IsBedroomSpace(space.Name))
             {
                 var outlets = GenerateBedroomOutlets(space);
@@ -108,8 +108,24 @@ namespace NEC_AI_V1
                         roomDebug += $"  {element.Name}: ({locPoint.Point.X:F1}, {locPoint.Point.Y:F1})\n";
                     }
                 }
+                // Gets the wall info
+                roomDebug += "\nWall boundaries:\n";
+                // First need to get the actual Room object (not SpaceRoomInfo)
+                Room room = doc.GetElement(space.Id) as Room;
+                if (room != null)
+                {
+                    var boundaries = room.GetBoundarySegments(new SpatialElementBoundaryOptions());
+                    if (boundaries.Count > 0)
+                    {
+                        foreach (var segment in boundaries[0]) // First loop is outer boundary
+                        {
+                            var curve = segment.GetCurve();
+                            roomDebug += $"  Wall from ({curve.GetEndPoint(0).X:F1}, {curve.GetEndPoint(0).Y:F1}) ";
+                            roomDebug += $"to ({curve.GetEndPoint(1).X:F1}, {curve.GetEndPoint(1).Y:F1})\n";
+                        }
+                    }
+                }
                 TaskDialog.Show("Room Boundary Debug", roomDebug);
-                //PlaceElectricalOutlets(doc, outlets, space, null, "Table-Coffee", "24\" x 24\" x 24\"");
                 PlaceElectricalOutlets(doc, outlets, space, null, "Face_outlet", "Face_outlet");
 
             }
@@ -453,10 +469,12 @@ namespace NEC_AI_V1
             // Use coordinates closer to the actual room center (-9.1, 11.6)
             return new List<OutletData>
             {
-                new OutletData { X = -13, Y = 0, Z = 1.5, Name = "OUT_01" },
-                new OutletData { X = 2, Y = -16.3, Z = 1.5, Name = "OUT_02" },
-                new OutletData { X = 5, Y = 3.5, Z = 1.5, Name = "OUT_03" },
-                new OutletData { X = 5, Y = -4, Z = 1.5, Name = "OUT_04" },
+                new OutletData { X = -13.6, Y = -8.0, Z = 1.5, Name = "OUT_01" },
+                new OutletData { X = -13.6, Y = -6.0, Z = 1.5, Name = "OUT_02" },
+                new OutletData { X = -8.0, Y = -15.3, Z = 1.5, Name = "OUT_03" },
+                new OutletData { X = -4.1, Y = -8.0, Z = 1.5, Name = "OUT_04" },
+                new OutletData { X = -7.0, Y = 1.4, Z = 1.5, Name = "OUT_05" },
+                new OutletData { X = -12.0, Y = 1.6, Z = 1.5, Name = "OUT_06" },
             };
         }
         private string GetElementDetails(Element element)
