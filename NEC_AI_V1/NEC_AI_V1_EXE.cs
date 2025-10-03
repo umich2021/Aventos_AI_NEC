@@ -261,7 +261,6 @@ namespace NEC_AI_V1
                         TaskDialog.Show($"Outlet {od.Name} Debug", debugMsg);
                         FamilyInstance fi = null;
 
-
                         // Use wall hosted-based placement directly
                         Reference faceRef = GetInteriorFaceReference(hostWall, roomCenter);
 
@@ -469,12 +468,13 @@ namespace NEC_AI_V1
             // Use coordinates closer to the actual room center (-9.1, 11.6)
             return new List<OutletData>
             {
-                new OutletData { X = -13.6, Y = -8.0, Z = 1.5, Name = "OUT_01" },
-                new OutletData { X = -13.6, Y = -6.0, Z = 1.5, Name = "OUT_02" },
-                new OutletData { X = -8.0, Y = -15.3, Z = 1.5, Name = "OUT_03" },
-                new OutletData { X = -4.1, Y = -8.0, Z = 1.5, Name = "OUT_04" },
-                new OutletData { X = -7.0, Y = 1.4, Z = 1.5, Name = "OUT_05" },
-                new OutletData { X = -12.0, Y = 1.6, Z = 1.5, Name = "OUT_06" },
+                new OutletData { X = -13.2, Y = -2.0, Z = 1.5, Name = "OUT_01" },
+                new OutletData { X = -13.2, Y = -8.0, Z = 1.5, Name = "OUT_02" },
+                new OutletData { X = -13.2, Y = -14.0, Z = 1.5, Name = "OUT_03" },
+                new OutletData { X = -7.0, Y = -17.7, Z = 1.5, Name = "OUT_04" },
+                new OutletData { X = -0.7, Y = -8.0, Z = 1.5, Name = "OUT_05" },
+                new OutletData { X = -0.7, Y = 0.0, Z = 1.5, Name = "OUT_06" },
+                new OutletData { X = -7.0, Y = 3.7, Z = 1.5, Name = "OUT_07" },
             };
         }
         private string GetElementDetails(Element element)
