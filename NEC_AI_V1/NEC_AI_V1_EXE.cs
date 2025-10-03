@@ -281,7 +281,9 @@ namespace NEC_AI_V1
                                     if (intResult != null)
                                     {
                                         UV uv = intResult.UVPoint;
-                                        XYZ facePoint = face.Evaluate(uv);
+                                        XYZ initialfacePoint = face.Evaluate(uv);
+                                        XYZ facePoint = new XYZ(initialfacePoint.X, initialfacePoint.Y, od.Z);
+                                        TaskDialog.Show("facepoint is", facePoint.ToString());
                                         Transform faceTransform = face.ComputeDerivatives(uv);
 
                                         // Create face-based instance
@@ -291,6 +293,22 @@ namespace NEC_AI_V1
                                             faceTransform.BasisX,  // U direction on face
                                             outletSymbol
                                         );
+                                    }
+                                    // After creating the outlet instance
+                                    if (outletInstance != null)
+                                    {
+                                        // Set the elevation offset
+                                        Parameter elevParam = outletInstance.get_Parameter(BuiltInParameter.INSTANCE_ELEVATION_PARAM);
+                                        if (elevParam == null)
+                                            elevParam = outletInstance.get_Parameter(BuiltInParameter.INSTANCE_SILL_HEIGHT_PARAM);
+                                        if (elevParam == null)
+                                            elevParam = outletInstance.get_Parameter(BuiltInParameter.INSTANCE_FREE_HOST_OFFSET_PARAM);
+
+                                        if (elevParam != null && !elevParam.IsReadOnly)
+                                        {
+                                            elevParam.Set(od.Z); // Set to 1.5 feet
+                                        }
+                                        
                                     }
                                 }
 
@@ -367,9 +385,6 @@ namespace NEC_AI_V1
             {
                 // Get all interior faces
                 IList<Reference> interiorRefs = HostObjectUtils.GetSideFaces(wall, ShellLayerType.Interior);
-
-                //debug how many interior faces found
-                TaskDialog.Show("Face Debug", $"Interior faces found: {interiorRefs?.Count ?? 0}");
 
                 if (interiorRefs == null || interiorRefs.Count == 0)
                 {
