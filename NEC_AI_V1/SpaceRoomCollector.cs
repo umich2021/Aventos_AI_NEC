@@ -1,6 +1,7 @@
 ﻿using Autodesk.Revit.DB;
 using Autodesk.Revit.DB.Architecture;
 using Autodesk.Revit.DB.Mechanical;
+using Autodesk.Revit.UI;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -29,6 +30,52 @@ namespace NEC_AI_V1
         public SpaceRoomCollector(Document document)
         {
             _doc = document;
+        }
+        public List<ElementId> GetDoorsForRoom(Room room)
+        {
+            var doorIds = new List<ElementId>();
+
+            // Get all doors in the document
+            var doorCollector = new FilteredElementCollector(_doc)
+                .OfCategory(BuiltInCategory.OST_Doors)
+                .WhereElementIsNotElementType();
+            // Get room boundary segments
+            var boundaries = room.GetBoundarySegments(new SpatialElementBoundaryOptions());
+            if (boundaries == null || boundaries.Count == 0)
+                return doorIds;
+            int totalDoors = doorCollector.GetElementCount();
+            string debugInfo = $"Total doors in project: {totalDoors}\n";
+            debugInfo += $"Looking for room: '{room.Number}' - '{room.Name}'\n\n";
+
+            foreach (FamilyInstance door in doorCollector)
+            {
+                // Access FromRoom and ToRoom by parameter name (they're not built-in parameters)
+                Parameter fromRoom = door.LookupParameter("From Room");
+                Parameter toRoom = door.LookupParameter("To Room");
+
+                // Compare by room number
+                string roomNumber = room.Number;
+                string roomName = room.Name;
+
+                string fromValue = fromRoom?.AsString() ?? "NULL";
+                string toValue = toRoom?.AsString() ?? "NULL";
+                debugInfo += $"Door '{door.Name}': From='{fromValue}', To='{toValue}'\n";
+
+                // Check if door is associated with this room
+                bool matchesFromRoom = fromRoom != null &&
+                    (fromRoom.AsString() == roomNumber || fromRoom.AsString() == roomName);
+                bool matchesToRoom = toRoom != null &&
+                    (toRoom.AsString() == roomNumber || toRoom.AsString() == roomName);
+
+                if (matchesFromRoom || matchesToRoom)
+                {
+                    doorIds.Add(door.Id);
+                    debugInfo += "  ✓ MATCHED!\n";
+                }
+            }
+            debugInfo += $"\nFound {doorIds.Count} doors for this room";
+            TaskDialog.Show("Door Collection Debug", debugInfo);
+            return doorIds;
         }
 
         public List<SpaceRoomInfo> GetAllRooms()

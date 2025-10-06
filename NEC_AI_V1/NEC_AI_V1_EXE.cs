@@ -21,7 +21,6 @@ namespace NEC_AI_V1
         {
             // Show where the DLL is being loaded from
             string dllPath = System.Reflection.Assembly.GetExecutingAssembly().Location;
-            TaskDialog.Show("DLL Location", $"Loading from:\n{dllPath}");
             try
             {
                 UIDocument uidoc = commandData.Application.ActiveUIDocument;
@@ -49,15 +48,6 @@ namespace NEC_AI_V1
                 return Result.Failed;
             }
         }
-        ////removing the following
-        //public class OutletData
-        //{
-        //    public double X { get; set; }
-        //    public double Y { get; set; }
-        //    public double Z { get; set; }
-        //    public string Name { get; set; }
-        //}
-
         private void AnalyzeSpace(SpaceRoomInfo space, Document doc)
         {
             string spaceInfo = $"=== {space.Name} ({space.Number}) ===\n";
@@ -99,25 +89,45 @@ namespace NEC_AI_V1
 
             spaceInfo += $"\nTOTAL ELEMENTS: {space.ContainedElements.Count}\n";
             
+            //code that gathers the data in a room
             if (IsBedroomSpace(space.Name))
             {
+                var dataGatherer = new GatherData();
                 //var outlets = GenerateBedroomOutlets(space);
                 //PATH TO FAMILY
-                // Add this to your AnalyzeSpace method right before outlet placement:
                 string roomDebug = $"Room: {space.Name}\n";
                 roomDebug += $"Elements in this room:\n";
+
+                Room room = doc.GetElement(space.Id) as Room;
+                if (room != null)
+                {
+                    var collector = new SpaceRoomCollector(doc);
+                    var doorIds = collector.GetDoorsForRoom(room);
+                    foreach (var doorId in doorIds)
+                    {
+                        if (!space.ContainedElements.Contains(doorId))
+                        {
+                            space.ContainedElements.Add(doorId);
+                        }
+                    }
+                }
                 foreach (var elementId in space.ContainedElements)
                 {
                     var element = doc.GetElement(elementId);
-                    if (element?.Location is LocationPoint locPoint)
+                    if (element != null)
                     {
-                        roomDebug += $"  {element.Name}: ({locPoint.Point.X:F1}, {locPoint.Point.Y:F1})\n";
+                        string elementInfo = dataGatherer.GetElementInfoWithParameters(element);
+                        if (!string.IsNullOrEmpty(elementInfo))
+                        {
+                            roomDebug += elementInfo + "\n";
+                        }
                     }
                 }
                 // Gets the wall info
                 roomDebug += "\nWall boundaries:\n";
+
                 // First need to get the actual Room object (not SpaceRoomInfo)
-                Room room = doc.GetElement(space.Id) as Room;
+                //room = doc.GetElement(space.Id) as Room;
                 if (room != null)
                 {
                     var boundaries = room.GetBoundarySegments(new SpatialElementBoundaryOptions());
@@ -134,17 +144,12 @@ namespace NEC_AI_V1
                 TaskDialog.Show("Room Boundary Debug", roomDebug);
 
                 //calling the api
-                
                 string userPreferences = "Our local codes require a 10ft rule instead of a 12 ft rule. Every 5ft there must be a outlet on a wall";
                 string apiResponse = Task.Run(async () =>
                 {
                     return await apiHelper.GetOutletDataFromAPI(roomDebug, userPreferences);
                 }).Result;
-
-
-                // Show the API response for debugging
-                TaskDialog.Show("API Response from Claude", apiResponse);
-
+                                              
                 try
                 {
                     // Add this option for case-insensitive parsing
@@ -161,20 +166,20 @@ namespace NEC_AI_V1
 
                     // Show summary - FIX: use outletData.room_name not outletData
                     // Show summary
-                    string summary = $"Room: {outletData.room_name}\n" +
-                                    $"Type: {outletData.room_type}\n" +
-                                    $"Outlets to place: {outletData.outlet_count}\n\n" +
-                                    $"Reasoning: {outletData.reasoning}";
+                    //string summary = $"Room: {outletData.room_name}\n" +
+                    //                $"Type: {outletData.room_type}\n" +
+                    //                $"Outlets to place: {outletData.outlet_count}\n\n" +
+                    //                $"Reasoning: {outletData.reasoning}";
 
-                    TaskDialog.Show("Parsed Outlet Data", summary);
+                    //TaskDialog.Show("Parsed Outlet Data", summary);
 
-                    // Now place the outlets in Revit
-                    foreach (var outlet in outletData.outlets)
-                    {
-                        // TODO: Place outlet at (outlet.X, outlet.Y, outlet.Z)
-                        TaskDialog.Show("Outlet Position",
-                            $"{outlet.Name}: X={outlet.X}, Y={outlet.Y}, Z={outlet.Z}");
-                    }
+                    //// Now place the outlets in Revit
+                    //foreach (var outlet in outletData.outlets)
+                    //{
+                    //    // TODO: Place outlet at (outlet.X, outlet.Y, outlet.Z)
+                    //    TaskDialog.Show("Outlet Position",
+                    //        $"{outlet.Name}: X={outlet.X}, Y={outlet.Y}, Z={outlet.Z}");
+                    //}
 
                     PlaceElectricalOutlets(doc, outletData, space, null, "Face_outlet", "Face_outlet");
 
@@ -182,14 +187,7 @@ namespace NEC_AI_V1
                 catch (Exception ex)
                 {
                     TaskDialog.Show("Parsing Error", $"Failed to parse:\n{ex.Message}");
-                }
-                
-
-                // FOR NOW - still use hardcoded outlets until you parse the response
-                //outlets = GenerateBedroomOutlets(space);  // Keep this temporarily
-
-                //PlaceElectricalOutlets(doc, outlets, space, null, "Face_outlet", "Face_outlet");
-
+                }            
             }
 
             TaskDialog.Show($"DEVELOPMENT: {space.Name}", spaceInfo);
@@ -207,10 +205,8 @@ namespace NEC_AI_V1
                         return null;
                     }
                 }
-
                 // Find the specific symbol/type
                 var collector = new FilteredElementCollector(doc).OfClass(typeof(FamilySymbol));
-
                 foreach (FamilySymbol symbol in collector)
                 {
                     // CHECK FOR MATCHING FAMILY AND TYPE - THIS WAS MISSING!
@@ -242,15 +238,6 @@ namespace NEC_AI_V1
                 return null;
             }
         }
-        // CHANGE 5: Added main outlet placement method with transaction handling
-        // --- REPLACEMENT: PlaceElectricalOutlets ---
-        //private bool PlaceElectricalOutlets(
-        //    Document doc,
-        //    List<OutletData> outletData,
-        //    SpaceRoomInfo space,
-        //    string familyPath = null,
-        //    string familyName = "Electrical Outlet",
-        //    string typeName = "Duplex Outlet")
         private bool PlaceElectricalOutlets(
             Document doc,
             OutletData outletData,  // Changed from List<OutletData> to OutletData
@@ -271,7 +258,6 @@ namespace NEC_AI_V1
                 TaskDialog.Show("Error", $"Could not find family '{familyName}' with type '{typeName}'");
                 return false;
             }
-
             // activate if needed
             if (!outletSymbol.IsActive)
             {
@@ -283,7 +269,6 @@ namespace NEC_AI_V1
                     t.Commit();
                 }
             }
-
             // resolve level
             Level roomLevel = new FilteredElementCollector(doc)
                 .OfClass(typeof(Level))
@@ -302,15 +287,13 @@ namespace NEC_AI_V1
             {
                 trans.Start();
                 XYZ roomCenter = CalculateRoomCenter(space, doc);
-
                 try
                 {
                     foreach (var od in outletData.outlets)
                     {
                         XYZ desiredPoint = new XYZ(od.X, od.Y, od.Z);
                         Wall hostWall = GetNearestWall(doc, desiredPoint);
-
-
+                        
                         // nearest wall and projection
                         if (hostWall == null)
                         {
@@ -354,7 +337,7 @@ namespace NEC_AI_V1
                                         //XYZ facePoint = face.Evaluate(uv);
                                         XYZ initialfacePoint = face.Evaluate(uv);
                                         XYZ facePoint = new XYZ(initialfacePoint.X, initialfacePoint.Y, od.Z);
-                                        TaskDialog.Show("facepoint is", facePoint.ToString());
+                                        //TaskDialog.Show("facepoint is", facePoint.ToString());
                                         Transform faceTransform = face.ComputeDerivatives(uv);
 
                                         // Create face-based instance
@@ -373,7 +356,7 @@ namespace NEC_AI_V1
                                 {
                                     lvlParam.Set(roomLevel.Id);
 
-                                    TaskDialog.Show("Placement Method", "SUCCESS: Wall-hosted placement used");
+                                    //TaskDialog.Show("Placement Method", "SUCCESS: Wall-hosted placement used");
                                 }
                             }
 
@@ -430,12 +413,12 @@ namespace NEC_AI_V1
                 }
             }
 
-            TaskDialog.Show("Success", $"Successfully placed {placed} outlets");
+            //TaskDialog.Show("Success", $"Successfully placed {placed} outlets");
             return true;
         }
         private Reference GetInteriorFaceReference(Wall wall, XYZ roomCenter)
         {
-            TaskDialog.Show("Face Method Called", "GetInteriorFaceReference is being called");
+            //TaskDialog.Show("Face Method Called", "GetInteriorFaceReference is being called");
             try
             {
                 // Get all interior faces
@@ -465,7 +448,7 @@ namespace NEC_AI_V1
                         // If normal points AWAY from room, use exterior face instead
                         if (faceNormal.DotProduct(toRoom) < 0)
                         {
-                            TaskDialog.Show("Wall Orientation", $"Wall {wall.Name} interior faces away from room, using exterior");
+                            //TaskDialog.Show("Wall Orientation", $"Wall {wall.Name} interior faces away from room, using exterior");
                             IList<Reference> exteriorRefs = HostObjectUtils.GetSideFaces(wall, ShellLayerType.Exterior);
                             return exteriorRefs?.FirstOrDefault();
                         }
@@ -513,9 +496,9 @@ namespace NEC_AI_V1
                 }
 
                 // Debug info for compound walls
-                TaskDialog.Show("Compound Wall Debug",
-                    $"Wall has {interiorRefs.Count} interior faces\n" +
-                    $"Selected face at distance: {closestDistance:F2}");
+                //TaskDialog.Show("Compound Wall Debug",
+                //    $"Wall has {interiorRefs.Count} interior faces\n" +
+                //    $"Selected face at distance: {closestDistance:F2}");
 
                 return bestFace ?? interiorRefs[0]; // Fallback to first face if calculation fails
             }
@@ -645,7 +628,7 @@ namespace NEC_AI_V1
             debugInfo += $"Final Room Center: ({roomCenter.X:F1}, {roomCenter.Y:F1}, {roomCenter.Z:F1})\n";
             debugInfo += $"Total elements used: {count}";
 
-            TaskDialog.Show("Room Center Debug", debugInfo);
+            //TaskDialog.Show("Room Center Debug", debugInfo);
             return roomCenter;
         }
         // ADD THIS METHOD TOO
