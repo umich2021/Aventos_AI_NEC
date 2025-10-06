@@ -39,43 +39,86 @@ namespace NEC_AI_V1
             var doorCollector = new FilteredElementCollector(_doc)
                 .OfCategory(BuiltInCategory.OST_Doors)
                 .WhereElementIsNotElementType();
-            // Get room boundary segments
-            var boundaries = room.GetBoundarySegments(new SpatialElementBoundaryOptions());
-            if (boundaries == null || boundaries.Count == 0)
+            //// Get room boundary segments
+            //var boundaries = room.GetBoundarySegments(new SpatialElementBoundaryOptions());
+            //if (boundaries == null || boundaries.Count == 0)
+            //    return doorIds;
+            //int totalDoors = doorCollector.GetElementCount();
+            //string debugInfo = $"Total doors in project: {totalDoors}\n";
+            //debugInfo += $"Looking for room: '{room.Number}' - '{room.Name}'\n\n";
+
+            // Get room's bounding box
+            String debugInfo = "";
+            BoundingBoxXYZ roomBBox = room.get_BoundingBox(null);
+            if (roomBBox == null)
+            {
+                debugInfo += "ERROR: Room has no bounding box\n";
+                TaskDialog.Show("Door Collection Debug", debugInfo);
                 return doorIds;
-            int totalDoors = doorCollector.GetElementCount();
-            string debugInfo = $"Total doors in project: {totalDoors}\n";
-            debugInfo += $"Looking for room: '{room.Number}' - '{room.Name}'\n\n";
+            }
+
+            debugInfo += $"Room BBox: ({roomBBox.Min.X:F1}, {roomBBox.Min.Y:F1}) to ({roomBBox.Max.X:F1}, {roomBBox.Max.Y:F1})\n\n";
 
             foreach (FamilyInstance door in doorCollector)
             {
-                // Access FromRoom and ToRoom by parameter name (they're not built-in parameters)
-                Parameter fromRoom = door.LookupParameter("From Room");
-                Parameter toRoom = door.LookupParameter("To Room");
-
-                // Compare by room number
-                string roomNumber = room.Number;
-                string roomName = room.Name;
-
-                string fromValue = fromRoom?.AsString() ?? "NULL";
-                string toValue = toRoom?.AsString() ?? "NULL";
-                debugInfo += $"Door '{door.Name}': From='{fromValue}', To='{toValue}'\n";
-
-                // Check if door is associated with this room
-                bool matchesFromRoom = fromRoom != null &&
-                    (fromRoom.AsString() == roomNumber || fromRoom.AsString() == roomName);
-                bool matchesToRoom = toRoom != null &&
-                    (toRoom.AsString() == roomNumber || toRoom.AsString() == roomName);
-
-                if (matchesFromRoom || matchesToRoom)
+                if (door.Location is LocationPoint doorLoc)
                 {
-                    doorIds.Add(door.Id);
-                    debugInfo += "  ✓ MATCHED!\n";
+                    XYZ doorPoint = doorLoc.Point;
+                    debugInfo += $"Door '{door.Name}' at ({doorPoint.X:F1}, {doorPoint.Y:F1}, {doorPoint.Z:F1})\n";
+
+                    // Expand bbox by 2 feet to catch doors on walls
+                    double buffer = 2.0;
+                    bool isNearRoom = doorPoint.X >= (roomBBox.Min.X - buffer) &&
+                                     doorPoint.X <= (roomBBox.Max.X + buffer) &&
+                                     doorPoint.Y >= (roomBBox.Min.Y - buffer) &&
+                                     doorPoint.Y <= (roomBBox.Max.Y + buffer);
+
+                    if (isNearRoom)
+                    {
+                        doorIds.Add(door.Id);
+                        debugInfo += "  ✓ ADDED\n";
+                    }
+                    else
+                    {
+                        debugInfo += "  ✗ Outside range\n";
+                    }
                 }
             }
-            debugInfo += $"\nFound {doorIds.Count} doors for this room";
+
+            debugInfo += $"\nFound {doorIds.Count} doors";
             TaskDialog.Show("Door Collection Debug", debugInfo);
+
             return doorIds;
+        //}
+        //    foreach (FamilyInstance door in doorCollector)
+        //    {
+        //        // Access FromRoom and ToRoom by parameter name (they're not built-in parameters)
+        //        Parameter fromRoom = door.LookupParameter("From Room");
+        //        Parameter toRoom = door.LookupParameter("To Room");
+
+        //        // Compare by room number
+        //        string roomNumber = room.Number;
+        //        string roomName = room.Name;
+
+        //        string fromValue = fromRoom?.AsString() ?? "NULL";
+        //        string toValue = toRoom?.AsString() ?? "NULL";
+        //        debugInfo += $"Door '{door.Name}': From='{fromValue}', To='{toValue}'\n";
+
+        //        // Check if door is associated with this room
+        //        bool matchesFromRoom = fromRoom != null &&
+        //            (fromRoom.AsString() == roomNumber || fromRoom.AsString() == roomName);
+        //        bool matchesToRoom = toRoom != null &&
+        //            (toRoom.AsString() == roomNumber || toRoom.AsString() == roomName);
+
+        //        if (matchesFromRoom || matchesToRoom)
+        //        {
+        //            doorIds.Add(door.Id);
+        //            debugInfo += "  ✓ MATCHED!\n";
+        //        }
+        //    }
+        //    debugInfo += $"\nFound {doorIds.Count} doors for this room";
+        //    TaskDialog.Show("Door Collection Debug", debugInfo);
+        //    return doorIds;
         }
 
         public List<SpaceRoomInfo> GetAllRooms()
