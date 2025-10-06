@@ -86,7 +86,7 @@ namespace NEC_AI_V1
             }
 
             debugInfo += $"\nFound {doorIds.Count} doors";
-            TaskDialog.Show("Door Collection Debug", debugInfo);
+            //TaskDialog.Show("Door Collection Debug", debugInfo);
 
             return doorIds;
         //}

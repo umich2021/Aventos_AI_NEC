@@ -90,107 +90,134 @@ namespace NEC_AI_V1
             spaceInfo += $"\nTOTAL ELEMENTS: {space.ContainedElements.Count}\n";
             
             //code that gathers the data in a room
-            if (IsBedroomSpace(space.Name))
+            
+            var dataGatherer = new GatherData();
+            //var outlets = GenerateBedroomOutlets(space);
+            //PATH TO FAMILY
+            string roomDebug = $"Room: {space.Name}\n";
+            roomDebug += $"Elements in this room:\n";
+
+            Room room = doc.GetElement(space.Id) as Room;
+            if (room != null)
             {
-                var dataGatherer = new GatherData();
-                //var outlets = GenerateBedroomOutlets(space);
-                //PATH TO FAMILY
-                string roomDebug = $"Room: {space.Name}\n";
-                roomDebug += $"Elements in this room:\n";
-
-                Room room = doc.GetElement(space.Id) as Room;
-                if (room != null)
+                var collector = new SpaceRoomCollector(doc);
+                var doorIds = collector.GetDoorsForRoom(room);
+                foreach (var doorId in doorIds)
                 {
-                    var collector = new SpaceRoomCollector(doc);
-                    var doorIds = collector.GetDoorsForRoom(room);
-                    foreach (var doorId in doorIds)
+                    if (!space.ContainedElements.Contains(doorId))
                     {
-                        if (!space.ContainedElements.Contains(doorId))
-                        {
-                            space.ContainedElements.Add(doorId);
-                        }
+                        space.ContainedElements.Add(doorId);
                     }
                 }
-                foreach (var elementId in space.ContainedElements)
-                {
-                    var element = doc.GetElement(elementId);
-                    if (element != null)
-                    {
-                        string elementInfo = dataGatherer.GetElementInfoWithParameters(element);
-                        if (!string.IsNullOrEmpty(elementInfo))
-                        {
-                            roomDebug += elementInfo + "\n";
-                        }
-                    }
-                }
-                // Gets the wall info
-                roomDebug += "\nWall boundaries:\n";
-
-                // First need to get the actual Room object (not SpaceRoomInfo)
-                //room = doc.GetElement(space.Id) as Room;
-                if (room != null)
-                {
-                    var boundaries = room.GetBoundarySegments(new SpatialElementBoundaryOptions());
-                    if (boundaries.Count > 0)
-                    {
-                        foreach (var segment in boundaries[0]) // First loop is outer boundary
-                        {
-                            var curve = segment.GetCurve();
-                            roomDebug += $"  Wall from ({curve.GetEndPoint(0).X:F1}, {curve.GetEndPoint(0).Y:F1}) ";
-                            roomDebug += $"to ({curve.GetEndPoint(1).X:F1}, {curve.GetEndPoint(1).Y:F1})\n";
-                        }
-                    }
-                }
-                TaskDialog.Show("Room Boundary Debug", roomDebug);
-
-                //calling the api
-                string userPreferences = "Our local codes require a 10ft rule instead of a 12 ft rule. Every 5ft there must be a outlet on a wall";
-                string apiResponse = Task.Run(async () =>
-                {
-                    return await apiHelper.GetOutletDataFromAPI(roomDebug, userPreferences);
-                }).Result;
-                                              
-                try
-                {
-                    // Add this option for case-insensitive parsing
-                    var options = new System.Text.Json.JsonSerializerOptions
-                    {
-                        PropertyNameCaseInsensitive = true
-                    };
-
-                    // Parse the outer response
-                    var apiResponseObj = System.Text.Json.JsonSerializer.Deserialize<ApiResponse>(apiResponse, options);
-
-                    // Parse the claude_response (which is now clean JSON)
-                    var outletData = System.Text.Json.JsonSerializer.Deserialize<OutletData>(apiResponseObj.claude_response, options);
-
-                    // Show summary - FIX: use outletData.room_name not outletData
-                    // Show summary
-                    //string summary = $"Room: {outletData.room_name}\n" +
-                    //                $"Type: {outletData.room_type}\n" +
-                    //                $"Outlets to place: {outletData.outlet_count}\n\n" +
-                    //                $"Reasoning: {outletData.reasoning}";
-
-                    //TaskDialog.Show("Parsed Outlet Data", summary);
-
-                    //// Now place the outlets in Revit
-                    //foreach (var outlet in outletData.outlets)
-                    //{
-                    //    // TODO: Place outlet at (outlet.X, outlet.Y, outlet.Z)
-                    //    TaskDialog.Show("Outlet Position",
-                    //        $"{outlet.Name}: X={outlet.X}, Y={outlet.Y}, Z={outlet.Z}");
-                    //}
-
-                    PlaceElectricalOutlets(doc, outletData, space, null, "Face_outlet", "Face_outlet");
-
-                }
-                catch (Exception ex)
-                {
-                    TaskDialog.Show("Parsing Error", $"Failed to parse:\n{ex.Message}");
-                }            
             }
+            foreach (var elementId in space.ContainedElements)
+            {
+                var element = doc.GetElement(elementId);
+                if (element != null)
+                {
+                    string elementInfo = dataGatherer.GetElementInfoWithParameters(element);
+                    if (!string.IsNullOrEmpty(elementInfo))
+                    {
+                        roomDebug += elementInfo + "\n";
+                    }
+                }
+            }
+            //roomDebug += "\nWall boundaries:\n";
+            //if (room != null)
+            //{
+            //    var boundaries = room.GetBoundarySegments(new SpatialElementBoundaryOptions());
+            //    if (boundaries.Count > 0)
+            //    {
+            //        foreach (var segment in boundaries[0])
+            //        {
+            //            var curve = segment.GetCurve();
+            //            XYZ start = curve.GetEndPoint(0);
+            //            XYZ end = curve.GetEndPoint(1);
 
-            TaskDialog.Show($"DEVELOPMENT: {space.Name}", spaceInfo);
+            //            // Identify wall orientation
+            //            string orientation = "";
+            //            if (Math.Abs(start.X - end.X) < 0.1) // Vertical wall (X constant)
+            //            {
+            //                orientation = start.X < 0 ? "West Wall" : "East Wall";
+            //                roomDebug += $"  {orientation}: X={start.X:F1}, Y from {Math.Min(start.Y, end.Y):F1} to {Math.Max(start.Y, end.Y):F1}\n";
+            //            }
+            //            else if (Math.Abs(start.Y - end.Y) < 0.1) // Horizontal wall (Y constant)
+            //            {
+            //                orientation = start.Y < 0 ? "South Wall" : "North Wall";
+            //                roomDebug += $"  {orientation}: Y={start.Y:F1}, X from {Math.Min(start.X, end.X):F1} to {Math.Max(start.X, end.X):F1}\n";
+            //            }
+            //        }
+            //    }
+            //}
+            roomDebug += "\nWall boundaries:\n";
+            if (room != null)
+            {
+                var boundaries = room.GetBoundarySegments(new SpatialElementBoundaryOptions());
+                if (boundaries.Count > 0)
+                {
+                    int wallNum = 1;
+                    foreach (var segment in boundaries[0])
+                    {
+                        var curve = segment.GetCurve();
+                        XYZ start = curve.GetEndPoint(0);
+                        XYZ end = curve.GetEndPoint(1);
+
+                        roomDebug += $"  Wall {wallNum}: from ({start.X:F1}, {start.Y:F1}) to ({end.X:F1}, {end.Y:F1})\n";
+                        wallNum++;
+                    }
+                }
+            }
+            //unnecssary window as i can see it on the server
+            //TaskDialog.Show("Room Boundary Debug", roomDebug);
+
+            //calling the api
+            string userPreferences = "Our local codes require a 10ft rule instead of a 12 ft rule. Every 5ft there must be a outlet on a wall";
+            string apiResponse = Task.Run(async () =>
+            {
+                return await apiHelper.GetOutletDataFromAPI(roomDebug, userPreferences);
+            }).Result;
+                                              
+            try
+            {
+                // Add this option for case-insensitive parsing
+                var options = new System.Text.Json.JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                };
+
+                // Parse the outer response
+                var apiResponseObj = System.Text.Json.JsonSerializer.Deserialize<ApiResponse>(apiResponse, options);
+
+                // Parse the claude_response (which is now clean JSON)
+                var outletData = System.Text.Json.JsonSerializer.Deserialize<OutletData>(apiResponseObj.claude_response, options);
+
+                // Show summary - FIX: use outletData.room_name not outletData
+                // Show summary
+                //string summary = $"Room: {outletData.room_name}\n" +
+                //                $"Type: {outletData.room_type}\n" +
+                //                $"Outlets to place: {outletData.outlet_count}\n\n" +
+                //                $"Reasoning: {outletData.reasoning}";
+
+                //TaskDialog.Show("Parsed Outlet Data", summary);
+
+                //// Now place the outlets in Revit
+                //foreach (var outlet in outletData.outlets)
+                //{
+                //    // TODO: Place outlet at (outlet.X, outlet.Y, outlet.Z)
+                //    TaskDialog.Show("Outlet Position",
+                //        $"{outlet.Name}: X={outlet.X}, Y={outlet.Y}, Z={outlet.Z}");
+                //}
+
+                PlaceElectricalOutlets(doc, outletData, space, null, "Face_outlet", "Face_outlet");
+
+            }
+            catch (Exception ex)
+            {
+                TaskDialog.Show("Parsing Error", $"Failed to parse:\n{ex.Message}");
+            }            
+            
+
+            //TaskDialog.Show($"DEVELOPMENT: {space.Name}", spaceInfo);
         }
         private FamilySymbol LoadAndGetFamilySymbol(Document doc, string familyPath, string familyName, string typeName)
         {
@@ -516,33 +543,6 @@ namespace NEC_AI_V1
             return name.Contains("br") || name.Contains("bedroom") || name.Contains("bed");
         }
 
-
-        //new thing added
-        //    private List<OutletPosition> GenerateBedroomOutlets(SpaceRoomInfo space)  // Changed return type
-        //    {
-        //        return new List<OutletPosition>  // Changed type
-        //{
-        //    new OutletPosition { X = -13.2, Y = -2.0, Z = 1.5, Name = "OUT_01" },
-        //    new OutletPosition { X = -13.2, Y = -8.0, Z = 1.5, Name = "OUT_02" },
-        //    // ... etc
-        //};
-        //}
-
-        //commeneted this out
-        //private List<Outlet> GenerateBedroomOutlets(SpaceRoomInfo space)
-        //{
-        //    // Use coordinates closer to the actual room center (-9.1, 11.6)
-        //    return new List<Outlet>
-        //    {
-        //        new Outlet { X = -13.2, Y = -2.0, Z = 1.5, Name = "OUT_01" },
-        //        new Outlet { X = -13.2, Y = -8.0, Z = 1.5, Name = "OUT_02" },
-        //        new Outlet { X = -13.2, Y = -14.0, Z = 1.5, Name = "OUT_03" },
-        //        new Outlet { X = -7.0, Y = -17.7, Z = 1.5, Name = "OUT_04" },
-        //        new Outlet { X = -0.7, Y = -8.0, Z = 1.5, Name = "OUT_05" },
-        //        new Outlet { X = -0.7, Y = 0.0, Z = 1.5, Name = "OUT_06" },
-        //        new Outlet { X = -7.0, Y = 3.7, Z = 1.5, Name = "OUT_07" },
-        //    };
-        //}
         private string GetElementDetails(Element element)
         {
             string details = $"• {element.Category?.Name ?? "No Category"}";
