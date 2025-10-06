@@ -16,8 +16,12 @@ namespace NEC_AI_V1
     [Regeneration(RegenerationOption.Manual)]
     public class GatherBIMInfoCommand : IExternalCommand
     {
+        private ApiHelper apiHelper = new ApiHelper();
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
+            // Show where the DLL is being loaded from
+            string dllPath = System.Reflection.Assembly.GetExecutingAssembly().Location;
+            TaskDialog.Show("DLL Location", $"Loading from:\n{dllPath}");
             try
             {
                 UIDocument uidoc = commandData.Application.ActiveUIDocument;
@@ -45,13 +49,14 @@ namespace NEC_AI_V1
                 return Result.Failed;
             }
         }
-        public class OutletData
-        {
-            public double X { get; set; }
-            public double Y { get; set; }
-            public double Z { get; set; }
-            public string Name { get; set; }
-        }
+        ////removing the following
+        //public class OutletData
+        //{
+        //    public double X { get; set; }
+        //    public double Y { get; set; }
+        //    public double Z { get; set; }
+        //    public string Name { get; set; }
+        //}
 
         private void AnalyzeSpace(SpaceRoomInfo space, Document doc)
         {
@@ -96,7 +101,7 @@ namespace NEC_AI_V1
             
             if (IsBedroomSpace(space.Name))
             {
-                var outlets = GenerateBedroomOutlets(space);
+                //var outlets = GenerateBedroomOutlets(space);
                 //PATH TO FAMILY
                 // Add this to your AnalyzeSpace method right before outlet placement:
                 string roomDebug = $"Room: {space.Name}\n";
@@ -127,7 +132,63 @@ namespace NEC_AI_V1
                     }
                 }
                 TaskDialog.Show("Room Boundary Debug", roomDebug);
-                PlaceElectricalOutlets(doc, outlets, space, null, "Face_outlet", "Face_outlet");
+
+                //calling the api
+                
+                string userPreferences = "Our local codes require a 10ft rule instead of a 12 ft rule. Every 5ft there must be a outlet on a wall";
+                string apiResponse = Task.Run(async () =>
+                {
+                    return await apiHelper.GetOutletDataFromAPI(roomDebug, userPreferences);
+                }).Result;
+
+
+                // Show the API response for debugging
+                TaskDialog.Show("API Response from Claude", apiResponse);
+
+                try
+                {
+                    // Add this option for case-insensitive parsing
+                    var options = new System.Text.Json.JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    };
+
+                    // Parse the outer response
+                    var apiResponseObj = System.Text.Json.JsonSerializer.Deserialize<ApiResponse>(apiResponse, options);
+
+                    // Parse the claude_response (which is now clean JSON)
+                    var outletData = System.Text.Json.JsonSerializer.Deserialize<OutletData>(apiResponseObj.claude_response, options);
+
+                    // Show summary - FIX: use outletData.room_name not outletData
+                    // Show summary
+                    string summary = $"Room: {outletData.room_name}\n" +
+                                    $"Type: {outletData.room_type}\n" +
+                                    $"Outlets to place: {outletData.outlet_count}\n\n" +
+                                    $"Reasoning: {outletData.reasoning}";
+
+                    TaskDialog.Show("Parsed Outlet Data", summary);
+
+                    // Now place the outlets in Revit
+                    foreach (var outlet in outletData.outlets)
+                    {
+                        // TODO: Place outlet at (outlet.X, outlet.Y, outlet.Z)
+                        TaskDialog.Show("Outlet Position",
+                            $"{outlet.Name}: X={outlet.X}, Y={outlet.Y}, Z={outlet.Z}");
+                    }
+
+                    PlaceElectricalOutlets(doc, outletData, space, null, "Face_outlet", "Face_outlet");
+
+                }
+                catch (Exception ex)
+                {
+                    TaskDialog.Show("Parsing Error", $"Failed to parse:\n{ex.Message}");
+                }
+                
+
+                // FOR NOW - still use hardcoded outlets until you parse the response
+                //outlets = GenerateBedroomOutlets(space);  // Keep this temporarily
+
+                //PlaceElectricalOutlets(doc, outlets, space, null, "Face_outlet", "Face_outlet");
 
             }
 
@@ -183,13 +244,21 @@ namespace NEC_AI_V1
         }
         // CHANGE 5: Added main outlet placement method with transaction handling
         // --- REPLACEMENT: PlaceElectricalOutlets ---
+        //private bool PlaceElectricalOutlets(
+        //    Document doc,
+        //    List<OutletData> outletData,
+        //    SpaceRoomInfo space,
+        //    string familyPath = null,
+        //    string familyName = "Electrical Outlet",
+        //    string typeName = "Duplex Outlet")
         private bool PlaceElectricalOutlets(
             Document doc,
-            List<OutletData> outletData,
+            OutletData outletData,  // Changed from List<OutletData> to OutletData
             SpaceRoomInfo space,
             string familyPath = null,
             string familyName = "Electrical Outlet",
-            string typeName = "Duplex Outlet")
+            string typeName = "Duplex Outlet"
+            )
         {
             // find symbol
             FamilySymbol outletSymbol = new FilteredElementCollector(doc)
@@ -236,7 +305,7 @@ namespace NEC_AI_V1
 
                 try
                 {
-                    foreach (var od in outletData)
+                    foreach (var od in outletData.outlets)
                     {
                         XYZ desiredPoint = new XYZ(od.X, od.Y, od.Z);
                         Wall hostWall = GetNearestWall(doc, desiredPoint);
@@ -259,7 +328,7 @@ namespace NEC_AI_V1
                         debugMsg += $"Wall Point: ({wallPoint.X:F1}, {wallPoint.Y:F1}, {wallPoint.Z:F1})\n";
                        // debugMsg += $"Interior Direction: ({interiorDir.X:F2}, {interiorDir.Y:F2}, {interiorDir.Z:F2})\n";
                         debugMsg += $"Final Point: ({finalPoint.X:F1}, {finalPoint.Y:F1}, {finalPoint.Z:F1})\n";
-                        TaskDialog.Show($"Outlet {od.Name} Debug", debugMsg);
+                        //TaskDialog.Show($"Outlet {od.Name} Debug", debugMsg);
                         FamilyInstance fi = null;
 
                         // Use wall hosted-based placement directly
@@ -464,20 +533,33 @@ namespace NEC_AI_V1
             return name.Contains("br") || name.Contains("bedroom") || name.Contains("bed");
         }
 
-        private List<OutletData> GenerateBedroomOutlets(SpaceRoomInfo space)
-        {
-            // Use coordinates closer to the actual room center (-9.1, 11.6)
-            return new List<OutletData>
-            {
-                new OutletData { X = -13.2, Y = -2.0, Z = 1.5, Name = "OUT_01" },
-                new OutletData { X = -13.2, Y = -8.0, Z = 1.5, Name = "OUT_02" },
-                new OutletData { X = -13.2, Y = -14.0, Z = 1.5, Name = "OUT_03" },
-                new OutletData { X = -7.0, Y = -17.7, Z = 1.5, Name = "OUT_04" },
-                new OutletData { X = -0.7, Y = -8.0, Z = 1.5, Name = "OUT_05" },
-                new OutletData { X = -0.7, Y = 0.0, Z = 1.5, Name = "OUT_06" },
-                new OutletData { X = -7.0, Y = 3.7, Z = 1.5, Name = "OUT_07" },
-            };
-        }
+
+        //new thing added
+        //    private List<OutletPosition> GenerateBedroomOutlets(SpaceRoomInfo space)  // Changed return type
+        //    {
+        //        return new List<OutletPosition>  // Changed type
+        //{
+        //    new OutletPosition { X = -13.2, Y = -2.0, Z = 1.5, Name = "OUT_01" },
+        //    new OutletPosition { X = -13.2, Y = -8.0, Z = 1.5, Name = "OUT_02" },
+        //    // ... etc
+        //};
+        //}
+
+        //commeneted this out
+        //private List<Outlet> GenerateBedroomOutlets(SpaceRoomInfo space)
+        //{
+        //    // Use coordinates closer to the actual room center (-9.1, 11.6)
+        //    return new List<Outlet>
+        //    {
+        //        new Outlet { X = -13.2, Y = -2.0, Z = 1.5, Name = "OUT_01" },
+        //        new Outlet { X = -13.2, Y = -8.0, Z = 1.5, Name = "OUT_02" },
+        //        new Outlet { X = -13.2, Y = -14.0, Z = 1.5, Name = "OUT_03" },
+        //        new Outlet { X = -7.0, Y = -17.7, Z = 1.5, Name = "OUT_04" },
+        //        new Outlet { X = -0.7, Y = -8.0, Z = 1.5, Name = "OUT_05" },
+        //        new Outlet { X = -0.7, Y = 0.0, Z = 1.5, Name = "OUT_06" },
+        //        new Outlet { X = -7.0, Y = 3.7, Z = 1.5, Name = "OUT_07" },
+        //    };
+        //}
         private string GetElementDetails(Element element)
         {
             string details = $"• {element.Category?.Name ?? "No Category"}";
