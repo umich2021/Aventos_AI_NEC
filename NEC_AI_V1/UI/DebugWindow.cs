@@ -34,8 +34,8 @@ namespace NEC_AI_V1.UI
                 FontFamily = new FontFamily("Consolas"),
                 FontSize = 13,
                 Padding = new Thickness(15),
-                Background = new SolidColorBrush(Color.FromRgb(255, 255, 255)),
-                Foreground = new SolidColorBrush(Color.FromRgb(0,0,0)),
+                Background = new SolidColorBrush(Color.FromRgb(30, 30, 30)),
+                Foreground = new SolidColorBrush(Color.FromRgb(255,255,255)),
                 BorderThickness = new Thickness(0)
             };
             System.Windows.Controls.Grid.SetRow(textBox, 0);

@@ -21,10 +21,22 @@ namespace NEC_AI_V1
         private ApiHelper apiHelper = new ApiHelper();
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
-            var debugWindow = new DebugWindow("Successfuly new window", $"Processed spaces/rooms");
+            
+
+            var rulesDialog = new text_form();
+            bool? result = rulesDialog.ShowDialog();
+
+            if (result != true)
+            {
+                // User clicked Cancel
+                return Result.Cancelled;
+            }
+
+            string userPreferences = rulesDialog.form_input;
+            var debugWindow = new DebugWindow("Successfuly new window", $"User rules are {userPreferences}");
             debugWindow.ShowDialog();
+
             // Show where the DLL is being loaded from
-            string dllPath = System.Reflection.Assembly.GetExecutingAssembly().Location;
             try
             {
                 UIDocument uidoc = commandData.Application.ActiveUIDocument;
@@ -181,7 +193,7 @@ namespace NEC_AI_V1
             {
                 return await apiHelper.GetOutletDataFromAPI(roomDebug, userPreferences);
             }).Result;
-                                              
+            string analysisReport = "";
             try
             {
                 // Add this option for case-insensitive parsing
@@ -195,23 +207,27 @@ namespace NEC_AI_V1
 
                 // Parse the claude_response (which is now clean JSON)
                 var outletData = System.Text.Json.JsonSerializer.Deserialize<OutletData>(apiResponseObj.claude_response, options);
+                string reasoning = outletData.reasoning;
+                string codeCompliance = outletData.code_compliance;
+                string warnings = outletData.warnings;
+                string roomBoundaries = outletData.room_boundaries;
 
-                // Show summary - FIX: use outletData.room_name not outletData
-                // Show summary
-                //string summary = $"Room: {outletData.room_name}\n" +
-                //                $"Type: {outletData.room_type}\n" +
-                //                $"Outlets to place: {outletData.outlet_count}\n\n" +
-                //                $"Reasoning: {outletData.reasoning}";
+                analysisReport = $"=== OUTLET PLACEMENT ANALYSIS ===\n\n";
+                analysisReport += $"Room: {outletData.room_name} ({outletData.room_type})\n";
+                analysisReport += $"Total Outlets: {outletData.outlet_count}\n\n";
 
-                //TaskDialog.Show("Parsed Outlet Data", summary);
+                analysisReport += "--- REASONING ---\n";
+                analysisReport += $"{outletData.reasoning}\n\n";
 
-                //// Now place the outlets in Revit
-                //foreach (var outlet in outletData.outlets)
-                //{
-                //    // TODO: Place outlet at (outlet.X, outlet.Y, outlet.Z)
-                //    TaskDialog.Show("Outlet Position",
-                //        $"{outlet.Name}: X={outlet.X}, Y={outlet.Y}, Z={outlet.Z}");
-                //}
+                analysisReport += "--- CODE COMPLIANCE ---\n";
+                analysisReport += $"{outletData.code_compliance}\n\n";
+
+                analysisReport += "--- WARNINGS ---\n";
+                analysisReport += $"{outletData.warnings}\n\n";
+                foreach (var outlet in outletData.outlets)
+                {
+                    analysisReport += $"  {outlet.Name}: ({outlet.X:F1}, {outlet.Y:F1}, {outlet.Z:F1})\n";
+                }
 
                 PlaceElectricalOutlets(doc, outletData, space, null, "Face_outlet", "Face_outlet");
 
@@ -219,9 +235,13 @@ namespace NEC_AI_V1
             catch (Exception ex)
             {
                 TaskDialog.Show("Parsing Error", $"Failed to parse:\n{ex.Message}");
-            }            
-            
+            }
 
+
+
+
+            var showWork = new DebugWindow("Claude response is", analysisReport);
+            showWork.ShowDialog();
             //TaskDialog.Show($"DEVELOPMENT: {space.Name}", spaceInfo);
         }
         private FamilySymbol LoadAndGetFamilySymbol(Document doc, string familyPath, string familyName, string typeName)
