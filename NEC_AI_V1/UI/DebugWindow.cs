@@ -1,7 +1,7 @@
 ﻿using System.Windows;
 using System.Windows.Media;
 // DON'T use: using System.Windows.Controls;
-
+//accent color: #814ac8         rgb is 129, 74, 200
 namespace NEC_AI_V1.UI
 {
     public class DebugWindow : Window
@@ -16,7 +16,7 @@ namespace NEC_AI_V1.UI
             Width = 900;
             Height = 700;
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
-            Background = new SolidColorBrush(Color.FromRgb(45, 45, 48));
+            Background = new SolidColorBrush(Color.FromRgb(129, 74, 200));
 
             // Create main grid layout
             System.Windows.Controls.Grid mainGrid = new System.Windows.Controls.Grid();  // Specify WPF Grid
@@ -34,8 +34,8 @@ namespace NEC_AI_V1.UI
                 FontFamily = new FontFamily("Consolas"),
                 FontSize = 13,
                 Padding = new Thickness(15),
-                Background = new SolidColorBrush(Color.FromRgb(56, 173, 45)),
-                Foreground = new SolidColorBrush(Color.FromRgb(220, 220, 220)),
+                Background = new SolidColorBrush(Color.FromRgb(255, 255, 255)),
+                Foreground = new SolidColorBrush(Color.FromRgb(0,0,0)),
                 BorderThickness = new Thickness(0)
             };
             System.Windows.Controls.Grid.SetRow(textBox, 0);
@@ -46,7 +46,7 @@ namespace NEC_AI_V1.UI
                 Orientation = System.Windows.Controls.Orientation.Horizontal,
                 HorizontalAlignment = HorizontalAlignment.Right,
                 Margin = new Thickness(10),
-                Background = new SolidColorBrush(Color.FromRgb(45, 45, 48))
+                //Background = new SolidColorBrush(Color.FromRgb(45, 45, 48))
             };
             System.Windows.Controls.Grid.SetRow(buttonPanel, 1);
 
@@ -71,8 +71,8 @@ namespace NEC_AI_V1.UI
                 Width = 80,
                 Height = 30,
                 Margin = new Thickness(5),
-                Background = new SolidColorBrush(Color.FromRgb(237, 14, 14)),
-                Foreground = Brushes.White,
+                Background = new SolidColorBrush(Color.FromRgb(255, 255, 255)),
+                Foreground = new SolidColorBrush(Color.FromRgb(0, 0, 0)),
                 BorderThickness = new Thickness(0),
                 Cursor = System.Windows.Input.Cursors.Hand
             };
