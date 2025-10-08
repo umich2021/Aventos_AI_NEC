@@ -4,6 +4,7 @@ using Autodesk.Revit.DB.Architecture;
 using Autodesk.Revit.DB.Mechanical;
 using Autodesk.Revit.DB.Structure;
 using Autodesk.Revit.UI;
+using NEC_AI_V1.UI;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -16,9 +17,12 @@ namespace NEC_AI_V1
     [Regeneration(RegenerationOption.Manual)]
     public class GatherBIMInfoCommand : IExternalCommand
     {
+        
         private ApiHelper apiHelper = new ApiHelper();
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
+            var debugWindow = new DebugWindow("Successfuly new window", $"Processed spaces/rooms");
+            debugWindow.ShowDialog();
             // Show where the DLL is being loaded from
             string dllPath = System.Reflection.Assembly.GetExecutingAssembly().Location;
             try
@@ -38,7 +42,8 @@ namespace NEC_AI_V1
                     AnalyzeSpace(space, doc);
                 }
 
-                TaskDialog.Show("Success", $"Processed {allSpaces.Count} spaces/rooms");
+                debugWindow = new DebugWindow("Success", $"Processed {allSpaces.Count} spaces/rooms");
+                debugWindow.ShowDialog();
 
                 return Result.Succeeded;
             }
