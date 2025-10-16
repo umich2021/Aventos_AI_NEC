@@ -33,8 +33,9 @@ namespace NEC_AI_V1
             }
 
             string userPreferences = rulesDialog.form_input;
-            var debugWindow = new DebugWindow("Successfuly new window", $"User rules are {userPreferences}");
-            debugWindow.ShowDialog();
+            var debugWindow = new DebugWindow("start","program starting");
+            //var debugWindow = new DebugWindow("Successfuly new window", $"User rules are {userPreferences}");
+            //debugWindow.ShowDialog();
 
             // Show where the DLL is being loaded from
             try
@@ -55,7 +56,8 @@ namespace NEC_AI_V1
                 }
 
                 debugWindow = new DebugWindow("Success", $"Processed {allSpaces.Count} spaces/rooms");
-                debugWindow.ShowDialog();
+                //shows the result of the processed room
+                //debugWindow.ShowDialog();
 
                 return Result.Succeeded;
             }
