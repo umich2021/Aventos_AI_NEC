@@ -36,7 +36,7 @@ namespace NEC_AI_V1.UI
             // Text box for rules
             rulesTextBox = new System.Windows.Controls.TextBox
             {
-                Text = "i.e. Our local codes require gfci protection in every room",
+                Text = "Input custom codes and preferences, i.e. our local codes require gfci protection in every room",
                 TextWrapping = TextWrapping.Wrap,
                 AcceptsReturn = true,
                 VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
