@@ -161,7 +161,7 @@ namespace NEC_AI_V1
             }
             
             //calling the api
-            string userPreferences = "Our local codes require a 10ft rule instead of a 12 ft rule. Every 5ft there must be a outlet on a wall";
+            string userPreferences = "No user preference was inputted";
             string apiResponse = Task.Run(async () =>
             {
                 return await apiHelper.GetOutletDataFromAPI(roomDebug, userPreferences);
@@ -203,8 +203,15 @@ namespace NEC_AI_V1
                 }
                 string familyPath = @"C:\Users\jimso\Desktop\Face_outlet.rfa";
                 string familyName = "Face_outlet";
-                string typeName = "GFCI";
-                LoadAndGetFamilySymbol(doc,familyPath, familyName, typeName);
+                string typeName = "Regular";
+                //LoadAndGetFamilySymbol(doc,familyPath, familyName, typeName);
+
+                //loads the families in the files
+                LoadAndGetFamilySymbol(doc, OutletFamilyPaths.RegularPath, OutletFamilyPaths.RegularName, OutletFamilyPaths.RegularType);
+                LoadAndGetFamilySymbol(doc, OutletFamilyPaths.AFCIPath, OutletFamilyPaths.AFCIName, OutletFamilyPaths.AFCIType);
+                LoadAndGetFamilySymbol(doc, OutletFamilyPaths.GFCIPath, OutletFamilyPaths.GFCIName, OutletFamilyPaths.GFCIType);
+                LoadAndGetFamilySymbol(doc, OutletFamilyPaths.AFCI_GFCIPath, OutletFamilyPaths.AFCI_GFCIName, OutletFamilyPaths.AFCI_GFCIType);
+
 
                 PlaceElectricalOutlets(doc, outletData, space, familyPath, familyName, typeName);
                 //types: Regular
@@ -247,7 +254,7 @@ namespace NEC_AI_V1
 
                     if (result == false)
                     {
-                        TaskDialog.Show("Error", $"Failed to load family from: {familyPath} \n this is the same shit");
+                        TaskDialog.Show("Error", $"Failed to load family from: {familyPath} \n");
                         return null;
                     }
                 }
