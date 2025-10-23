@@ -19,6 +19,7 @@ namespace NEC_AI_V1
         public string room_type { get; set; }
         public List<Outlet> outlets { get; set; }
         public int outlet_count { get; set; }
+        public string outlet_type_rules { get; set; }
         public string reasoning { get; set; }
         public string code_compliance { get; set; }
         public string room_boundaries { get; set; }
@@ -31,5 +32,6 @@ namespace NEC_AI_V1
         public double Y { get; set; }
         public double Z { get; set; }
         public string Name { get; set; }
+        public string FamilyName { get; set; }
     }
 }

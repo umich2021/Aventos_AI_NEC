@@ -201,19 +201,21 @@ namespace NEC_AI_V1
                 {
                     analysisReport += $"  {outlet.Name}: ({outlet.X:F1}, {outlet.Y:F1}, {outlet.Z:F1})\n";
                 }
-                string familyPath = @"C:\Users\jimso\Desktop\Face_outlet.rfa";
-                string familyName = "Face_outlet";
-                string typeName = "Regular";
+                //string familyPath = @"C:\Users\jimso\Desktop\Face_outlet.rfa";
+                //string familyName = "Face_outlet";
+                //string typeName = "Regular";
+
                 //LoadAndGetFamilySymbol(doc,familyPath, familyName, typeName);
 
                 //loads the families in the files
-                LoadAndGetFamilySymbol(doc, OutletFamilyPaths.RegularPath, OutletFamilyPaths.RegularName, OutletFamilyPaths.RegularType);
-                LoadAndGetFamilySymbol(doc, OutletFamilyPaths.AFCIPath, OutletFamilyPaths.AFCIName, OutletFamilyPaths.AFCIType);
-                LoadAndGetFamilySymbol(doc, OutletFamilyPaths.GFCIPath, OutletFamilyPaths.GFCIName, OutletFamilyPaths.GFCIType);
-                LoadAndGetFamilySymbol(doc, OutletFamilyPaths.AFCI_GFCIPath, OutletFamilyPaths.AFCI_GFCIName, OutletFamilyPaths.AFCI_GFCIType);
+                LoadAndGetFamilySymbol(doc, OutletFamilyLoader.RegularPath, OutletFamilyLoader.RegularName, OutletFamilyLoader.RegularType);
+                LoadAndGetFamilySymbol(doc, OutletFamilyLoader.AFCIPath, OutletFamilyLoader.AFCIName, OutletFamilyLoader.AFCIType);
+                LoadAndGetFamilySymbol(doc, OutletFamilyLoader.GFCIPath, OutletFamilyLoader.GFCIName, OutletFamilyLoader.GFCIType);
+                LoadAndGetFamilySymbol(doc, OutletFamilyLoader.AFCI_GFCIPath, OutletFamilyLoader.AFCI_GFCIName, OutletFamilyLoader.AFCI_GFCIType);
 
-
-                PlaceElectricalOutlets(doc, outletData, space, familyPath, familyName, typeName);
+                //changes necessary according for claude to get the correct in
+                //PlaceElectricalOutlets(doc, outletData, space, familyPath, familyName, typeName);
+                PlaceElectricalOutlets(doc, outletData, space);
                 //types: Regular
                 //AFCI
                 //GFCI
@@ -232,39 +234,113 @@ namespace NEC_AI_V1
             showWork.ShowDialog();
             //TaskDialog.Show($"DEVELOPMENT: {space.Name}", spaceInfo);
         }
+        //private FamilySymbol LoadAndGetFamilySymbol(Document doc, string familyPath, string familyName, string typeName)
+        //{
+        //    bool result = false;
+        //    using (Transaction trans = new Transaction(doc, "Load Family"))
+        //    {
+        //        trans.Start();
+        //        result = doc.LoadFamily(familyPath);
+        //        trans.Commit();
+        //    }
+        //    try
+        //    {
+        //        // DEBUG: Check if file exists
+        //        if (!string.IsNullOrEmpty(familyPath))
+        //        {
+        //            if (!System.IO.File.Exists(familyPath))
+        //            {
+        //                TaskDialog.Show("Error", $"File not found at: {familyPath}");
+        //                return null;
+        //            }
+
+        //            if (result == false)
+        //            {
+        //                TaskDialog.Show("Error", $"Failed to load family from: {familyPath} \n");
+        //                return null;
+        //            }
+        //        }
+
+        //        var collector = new FilteredElementCollector(doc).OfClass(typeof(FamilySymbol));
+        //        foreach (FamilySymbol symbol in collector)
+        //        {
+        //            if (symbol.Family.Name == familyName && symbol.Name == typeName)
+        //            {
+        //                // Activate symbol if not active
+        //                if (!symbol.IsActive)
+        //                {
+        //                    using (Transaction activateTransaction = new Transaction(doc, "Activate Symbol"))
+        //                    {
+        //                        activateTransaction.Start();
+        //                        symbol.Activate();
+        //                        doc.Regenerate();
+        //                        activateTransaction.Commit();
+        //                    }
+        //                }
+        //                return symbol;
+        //            }
+        //        }
+
+        //        TaskDialog.Show("Error", $"Symbol '{typeName}' not found in family '{familyName}'");
+        //        return null;
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        TaskDialog.Show("Error", $"Error loading family: {ex.Message}");
+        //        return null;
+        //    }
+        //}
         private FamilySymbol LoadAndGetFamilySymbol(Document doc, string familyPath, string familyName, string typeName)
         {
-            bool result = false;
-            using (Transaction trans = new Transaction(doc, "Load Family"))
-            {
-                trans.Start();
-                result = doc.LoadFamily(familyPath);
-                trans.Commit();
-            }
             try
             {
-                // DEBUG: Check if file exists
-                if (!string.IsNullOrEmpty(familyPath))
+                // First, check if family is already loaded
+                var existingCollector = new FilteredElementCollector(doc).OfClass(typeof(FamilySymbol));
+                foreach (FamilySymbol symbol in existingCollector)
                 {
-                    if (!System.IO.File.Exists(familyPath))
+                    if (symbol.Family.Name == familyName && symbol.Name == typeName)
                     {
-                        TaskDialog.Show("Error", $"File not found at: {familyPath}");
-                        return null;
-                    }
-
-                    if (result == false)
-                    {
-                        TaskDialog.Show("Error", $"Failed to load family from: {familyPath} \n");
-                        return null;
+                        // Family already exists, just activate if needed
+                        if (!symbol.IsActive)
+                        {
+                            using (Transaction activateTransaction = new Transaction(doc, "Activate Symbol"))
+                            {
+                                activateTransaction.Start();
+                                symbol.Activate();
+                                doc.Regenerate();
+                                activateTransaction.Commit();
+                            }
+                        }
+                        //TaskDialog.Show("Info", $"Family '{familyName}' already loaded");
+                        return symbol; // Return existing symbol - NO ERROR!
                     }
                 }
 
+                // Family not loaded yet, check if file exists
+                if (!System.IO.File.Exists(familyPath))
+                {
+                    TaskDialog.Show("Error", $"File not found at: {familyPath}");
+                    return null;
+                }
+
+                // Load the family
+                bool result = false;
+                using (Transaction trans = new Transaction(doc, "Load Family"))
+                {
+                    trans.Start();
+                    result = doc.LoadFamily(familyPath);
+                    trans.Commit();
+                }
+
+                // ✅ IMPORTANT: LoadFamily returns false if already loaded, but that's OK!
+                // We already checked above, so if we're here, it's a real error OR it loaded successfully
+
+                // Now find and return the symbol (regardless of result value)
                 var collector = new FilteredElementCollector(doc).OfClass(typeof(FamilySymbol));
                 foreach (FamilySymbol symbol in collector)
                 {
                     if (symbol.Family.Name == familyName && symbol.Name == typeName)
                     {
-                        // Activate symbol if not active
                         if (!symbol.IsActive)
                         {
                             using (Transaction activateTransaction = new Transaction(doc, "Activate Symbol"))
@@ -279,7 +355,8 @@ namespace NEC_AI_V1
                     }
                 }
 
-                TaskDialog.Show("Error", $"Symbol '{typeName}' not found in family '{familyName}'");
+                // If we get here, loading actually failed
+                TaskDialog.Show("Error", $"Could not find or load family '{familyName}' with type '{typeName}'");
                 return null;
             }
             catch (Exception ex)
@@ -288,38 +365,194 @@ namespace NEC_AI_V1
                 return null;
             }
         }
-        private bool PlaceElectricalOutlets(
-            Document doc,
-            OutletData outletData,  
-            SpaceRoomInfo space,
-            string familyPath = null,
-            string familyName = "Electrical Outlet",
-            string typeName = "Regular"
-            )
-        {
-            // find symbol
-            FamilySymbol outletSymbol = new FilteredElementCollector(doc)
-                .OfClass(typeof(FamilySymbol))
-                .Cast<FamilySymbol>()
-                .FirstOrDefault(s => s.Family.Name == familyName && s.Name == typeName);
+        //private bool PlaceElectricalOutlets(
+        //    Document doc,
+        //    OutletData outletData,  
+        //    SpaceRoomInfo space,
+        //    string familyPath = null,
+        //    string familyName = "Electrical Outlet",
+        //    string typeName = "Regular"
+        //    )
+        //{
+        //    // find symbol
+        //    FamilySymbol outletSymbol = new FilteredElementCollector(doc)
+        //        .OfClass(typeof(FamilySymbol))
+        //        .Cast<FamilySymbol>()
+        //        .FirstOrDefault(s => s.Family.Name == familyName && s.Name == typeName);
 
-            if (outletSymbol == null)
-            {
-                TaskDialog.Show("Error", $"Could not find family '{familyName}' with type '{typeName}'");
-                return false;
-            }
-            // activate if needed
-            if (!outletSymbol.IsActive)
-            {
-                using (var t = new Transaction(doc, "Activate Outlet Symbol"))
-                {
-                    t.Start();
-                    outletSymbol.Activate();
-                    doc.Regenerate();
-                    t.Commit();
-                }
-            }
-            // resolve level
+        //    if (outletSymbol == null)
+        //    {
+        //        TaskDialog.Show("Error", $"Could not find family '{familyName}' with type '{typeName}'");
+        //        return false;
+        //    }
+        //    // activate if needed
+        //    if (!outletSymbol.IsActive)
+        //    {
+        //        using (var t = new Transaction(doc, "Activate Outlet Symbol"))
+        //        {
+        //            t.Start();
+        //            outletSymbol.Activate();
+        //            doc.Regenerate();
+        //            t.Commit();
+        //        }
+        //    }
+        //    // resolve level
+        //    Level roomLevel = new FilteredElementCollector(doc)
+        //        .OfClass(typeof(Level))
+        //        .Cast<Level>()
+        //        .FirstOrDefault(l => l.Name == space.LevelName);
+
+        //    if (roomLevel == null)
+        //    {
+        //        TaskDialog.Show("Error", $"Level '{space.LevelName}' not found.");
+        //        return false;
+        //    }
+
+        //    int placed = 0;
+
+        //    using (var trans = new Transaction(doc, "Place Electrical Outlets"))
+        //    {
+        //        trans.Start();
+        //        XYZ roomCenter = CalculateRoomCenter(space, doc);
+        //        try
+        //        {
+        //            foreach (var od in outletData.outlets)
+        //            {
+        //                XYZ desiredPoint = new XYZ(od.X, od.Y, od.Z);
+        //                Wall hostWall = GetNearestWall(doc, desiredPoint);
+
+        //                // nearest wall and projection
+        //                if (hostWall == null)
+        //                {
+        //                    TaskDialog.Show("Warning", $"No wall found near outlet {od.Name}");
+        //                    continue;
+        //                }
+
+        //                XYZ wallPoint = ProjectPointToWall(desiredPoint, hostWall);
+        //                //XYZ interiorDir = GetInteriorDirection(hostWall, space, doc);
+        //                XYZ finalPoint = new XYZ(wallPoint.X, wallPoint.Y, desiredPoint.Z); // + interiorDir * 1; // small offset
+        //                finalPoint = desiredPoint;
+        //                // DEBUG INFORMATION
+        //                string debugMsg = $"Outlet {od.Name} Debug:\n";
+        //                debugMsg += $"Desired Point: ({od.X:F1}, {od.Y:F1}, {od.Z:F1})\n";
+        //                debugMsg += $"Wall Point: ({wallPoint.X:F1}, {wallPoint.Y:F1}, {wallPoint.Z:F1})\n";
+        //               // debugMsg += $"Interior Direction: ({interiorDir.X:F2}, {interiorDir.Y:F2}, {interiorDir.Z:F2})\n";
+        //                debugMsg += $"Final Point: ({finalPoint.X:F1}, {finalPoint.Y:F1}, {finalPoint.Z:F1})\n";
+        //                //TaskDialog.Show($"Outlet {od.Name} Debug", debugMsg);
+        //                FamilyInstance fi = null;
+
+        //                // Use wall hosted-based placement directly
+        //                Reference faceRef = GetInteriorFaceReference(hostWall, roomCenter);
+
+        //                //below code puts the face reference on the outside, all things should be in exterior
+        //                //faceRef = HostObjectUtils.GetSideFaces(hostWall, ShellLayerType.Exterior).FirstOrDefault();
+        //                if (faceRef != null)
+        //                {
+        //                    FamilyInstance outletInstance = null;
+        //                    try
+        //                    {
+        //                        // For face-based placement, project point onto the face
+        //                        GeometryObject geoObj = hostWall.GetGeometryObjectFromReference(faceRef);
+        //                        Face face = geoObj as Face;
+
+        //                        if (face != null)
+        //                        {
+        //                            IntersectionResult intResult = face.Project(wallPoint);
+        //                            if (intResult != null)
+        //                            {
+        //                                UV uv = intResult.UVPoint;
+        //                                //XYZ facePoint = face.Evaluate(uv);
+        //                                XYZ initialfacePoint = face.Evaluate(uv);
+        //                                XYZ facePoint = new XYZ(initialfacePoint.X, initialfacePoint.Y, od.Z);
+        //                                //TaskDialog.Show("facepoint is", facePoint.ToString());
+        //                                Transform faceTransform = face.ComputeDerivatives(uv);
+
+        //                                // Create face-based instance
+        //                                outletInstance = doc.Create.NewFamilyInstance(
+        //                                    faceRef,
+        //                                    facePoint,
+        //                                    faceTransform.BasisX,  // U direction on face
+        //                                    outletSymbol
+        //                                );
+        //                            }
+        //                        }
+
+        //                       // Ensure level param is set when possible
+        //                        Parameter lvlParam = outletInstance.get_Parameter(BuiltInParameter.FAMILY_LEVEL_PARAM);
+        //                        if (lvlParam != null && !lvlParam.IsReadOnly)
+        //                        {
+        //                            lvlParam.Set(roomLevel.Id);
+
+        //                            //TaskDialog.Show("Placement Method", "SUCCESS: Wall-hosted placement used");
+        //                        }
+        //                    }
+
+        //                    catch (Exception ex)
+        //                    {
+        //                        TaskDialog.Show("Wall-hosted Failed", $"Wall-hosted placement failed: {ex.Message}");
+        //                        // fallback: non-hosted placement
+        //                        //won't ever be used btw cuz receptcales are hosted placed elements
+        //                        try
+        //                        {
+        //                            outletInstance = doc.Create.NewFamilyInstance(finalPoint, outletSymbol, roomLevel, StructuralType.NonStructural);
+        //                        }
+        //                        catch
+        //                        {
+        //                            outletInstance = null;
+        //                        }
+        //                    }
+        //                }
+        //                else
+        //                {
+        //                    // no face ref, fallback to non-hosted
+        //                    try
+        //                    {
+        //                        fi = doc.Create.NewFamilyInstance(finalPoint, outletSymbol, roomLevel, StructuralType.NonStructural);
+        //                    }
+        //                    catch
+        //                    {
+        //                        fi = null;
+        //                    }
+        //                }
+
+        //                if (fi == null) continue;
+
+        //                // optional mark
+        //                if (!string.IsNullOrEmpty(od.Name))
+        //                {
+        //                    var mark = fi.get_Parameter(BuiltInParameter.ALL_MODEL_MARK);
+        //                    if (mark != null && !mark.IsReadOnly) mark.Set(od.Name);
+        //                }
+
+        //                // enforce facing into the room (geometric rotation fallback)
+        //                //FixFacingToRoom(doc, fi, space);
+
+        //                placed++;
+        //            }
+
+        //            trans.Commit();
+        //        }
+        //        catch (Exception ex)
+        //        {
+        //            trans.RollBack();
+        //            TaskDialog.Show("Error", $"Error placing outlets: {ex.Message}");
+        //            return false;
+        //        }
+        //    }
+
+        //    //TaskDialog.Show("Success", $"Successfully placed {placed} outlets");
+        //    return true;
+        //}
+
+
+        //new way to place electrical outlets
+        private bool PlaceElectricalOutlets(
+    Document doc,
+    OutletData outletData,
+    SpaceRoomInfo space
+)
+        {
+            // resolve level (moved up before loop)
             Level roomLevel = new FilteredElementCollector(doc)
                 .OfClass(typeof(Level))
                 .Cast<Level>()
@@ -337,14 +570,37 @@ namespace NEC_AI_V1
             {
                 trans.Start();
                 XYZ roomCenter = CalculateRoomCenter(space, doc);
+
                 try
                 {
                     foreach (var od in outletData.outlets)
                     {
+                        // ✅ GET THE SYMBOL FOR THIS SPECIFIC OUTLET
+                        string familyName = od.FamilyName ?? "Face_outlet"; // Use FamilyName from JSON
+                        string typeName = "Regular";
+
+                        FamilySymbol outletSymbol = new FilteredElementCollector(doc)
+                            .OfClass(typeof(FamilySymbol))
+                            .Cast<FamilySymbol>()
+                            .FirstOrDefault(s => s.Family.Name == familyName && s.Name == typeName);
+
+                        if (outletSymbol == null)
+                        {
+                            TaskDialog.Show("Error", $"Could not find family '{familyName}' for outlet {od.Name}");
+                            continue; // Skip this outlet, try next one
+                        }
+
+                        // Activate if needed
+                        if (!outletSymbol.IsActive)
+                        {
+                            outletSymbol.Activate();
+                            doc.Regenerate();
+                        }
+
+                        // ✅ REST OF YOUR CODE STAYS EXACTLY THE SAME
                         XYZ desiredPoint = new XYZ(od.X, od.Y, od.Z);
                         Wall hostWall = GetNearestWall(doc, desiredPoint);
-                        
-                        // nearest wall and projection
+
                         if (hostWall == null)
                         {
                             TaskDialog.Show("Warning", $"No wall found near outlet {od.Name}");
@@ -352,29 +608,16 @@ namespace NEC_AI_V1
                         }
 
                         XYZ wallPoint = ProjectPointToWall(desiredPoint, hostWall);
-                        //XYZ interiorDir = GetInteriorDirection(hostWall, space, doc);
-                        XYZ finalPoint = new XYZ(wallPoint.X, wallPoint.Y, desiredPoint.Z); // + interiorDir * 1; // small offset
-                        finalPoint = desiredPoint;
-                        // DEBUG INFORMATION
-                        string debugMsg = $"Outlet {od.Name} Debug:\n";
-                        debugMsg += $"Desired Point: ({od.X:F1}, {od.Y:F1}, {od.Z:F1})\n";
-                        debugMsg += $"Wall Point: ({wallPoint.X:F1}, {wallPoint.Y:F1}, {wallPoint.Z:F1})\n";
-                       // debugMsg += $"Interior Direction: ({interiorDir.X:F2}, {interiorDir.Y:F2}, {interiorDir.Z:F2})\n";
-                        debugMsg += $"Final Point: ({finalPoint.X:F1}, {finalPoint.Y:F1}, {finalPoint.Z:F1})\n";
-                        //TaskDialog.Show($"Outlet {od.Name} Debug", debugMsg);
-                        FamilyInstance fi = null;
+                        XYZ finalPoint = desiredPoint;
 
-                        // Use wall hosted-based placement directly
+                        FamilyInstance fi = null;
                         Reference faceRef = GetInteriorFaceReference(hostWall, roomCenter);
 
-                        //below code puts the face reference on the outside, all things should be in exterior
-                        //faceRef = HostObjectUtils.GetSideFaces(hostWall, ShellLayerType.Exterior).FirstOrDefault();
                         if (faceRef != null)
                         {
                             FamilyInstance outletInstance = null;
                             try
                             {
-                                // For face-based placement, project point onto the face
                                 GeometryObject geoObj = hostWall.GetGeometryObjectFromReference(faceRef);
                                 Face face = geoObj as Face;
 
@@ -384,50 +627,43 @@ namespace NEC_AI_V1
                                     if (intResult != null)
                                     {
                                         UV uv = intResult.UVPoint;
-                                        //XYZ facePoint = face.Evaluate(uv);
                                         XYZ initialfacePoint = face.Evaluate(uv);
                                         XYZ facePoint = new XYZ(initialfacePoint.X, initialfacePoint.Y, od.Z);
-                                        //TaskDialog.Show("facepoint is", facePoint.ToString());
                                         Transform faceTransform = face.ComputeDerivatives(uv);
 
-                                        // Create face-based instance
                                         outletInstance = doc.Create.NewFamilyInstance(
                                             faceRef,
                                             facePoint,
-                                            faceTransform.BasisX,  // U direction on face
-                                            outletSymbol
+                                            faceTransform.BasisX,
+                                            outletSymbol // Uses the correct symbol!
                                         );
                                     }
                                 }
 
-                               // Ensure level param is set when possible
                                 Parameter lvlParam = outletInstance.get_Parameter(BuiltInParameter.FAMILY_LEVEL_PARAM);
                                 if (lvlParam != null && !lvlParam.IsReadOnly)
                                 {
                                     lvlParam.Set(roomLevel.Id);
-
-                                    //TaskDialog.Show("Placement Method", "SUCCESS: Wall-hosted placement used");
                                 }
-                            }
 
+                                fi = outletInstance; // Set fi for mark assignment below
+                            }
                             catch (Exception ex)
                             {
                                 TaskDialog.Show("Wall-hosted Failed", $"Wall-hosted placement failed: {ex.Message}");
-                                // fallback: non-hosted placement
-                                //won't ever be used btw cuz receptcales are hosted placed elements
                                 try
                                 {
                                     outletInstance = doc.Create.NewFamilyInstance(finalPoint, outletSymbol, roomLevel, StructuralType.NonStructural);
+                                    fi = outletInstance;
                                 }
                                 catch
                                 {
-                                    outletInstance = null;
+                                    fi = null;
                                 }
                             }
                         }
                         else
                         {
-                            // no face ref, fallback to non-hosted
                             try
                             {
                                 fi = doc.Create.NewFamilyInstance(finalPoint, outletSymbol, roomLevel, StructuralType.NonStructural);
@@ -440,15 +676,11 @@ namespace NEC_AI_V1
 
                         if (fi == null) continue;
 
-                        // optional mark
                         if (!string.IsNullOrEmpty(od.Name))
                         {
                             var mark = fi.get_Parameter(BuiltInParameter.ALL_MODEL_MARK);
                             if (mark != null && !mark.IsReadOnly) mark.Set(od.Name);
                         }
-
-                        // enforce facing into the room (geometric rotation fallback)
-                        //FixFacingToRoom(doc, fi, space);
 
                         placed++;
                     }
@@ -463,7 +695,6 @@ namespace NEC_AI_V1
                 }
             }
 
-            //TaskDialog.Show("Success", $"Successfully placed {placed} outlets");
             return true;
         }
         private Reference GetInteriorFaceReference(Wall wall, XYZ roomCenter)
