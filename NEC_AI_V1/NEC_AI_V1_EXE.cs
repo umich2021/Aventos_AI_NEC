@@ -111,8 +111,7 @@ namespace NEC_AI_V1
             //code that gathers the data in a room
             
             var dataGatherer = new GatherData();
-            //var outlets = GenerateBedroomOutlets(space);
-            //PATH TO FAMILY
+           
             string roomDebug = $"Room: {space.Name}\n";
             roomDebug += $"Elements in this room:\n";
 
@@ -234,62 +233,6 @@ namespace NEC_AI_V1
             showWork.ShowDialog();
             //TaskDialog.Show($"DEVELOPMENT: {space.Name}", spaceInfo);
         }
-        //private FamilySymbol LoadAndGetFamilySymbol(Document doc, string familyPath, string familyName, string typeName)
-        //{
-        //    bool result = false;
-        //    using (Transaction trans = new Transaction(doc, "Load Family"))
-        //    {
-        //        trans.Start();
-        //        result = doc.LoadFamily(familyPath);
-        //        trans.Commit();
-        //    }
-        //    try
-        //    {
-        //        // DEBUG: Check if file exists
-        //        if (!string.IsNullOrEmpty(familyPath))
-        //        {
-        //            if (!System.IO.File.Exists(familyPath))
-        //            {
-        //                TaskDialog.Show("Error", $"File not found at: {familyPath}");
-        //                return null;
-        //            }
-
-        //            if (result == false)
-        //            {
-        //                TaskDialog.Show("Error", $"Failed to load family from: {familyPath} \n");
-        //                return null;
-        //            }
-        //        }
-
-        //        var collector = new FilteredElementCollector(doc).OfClass(typeof(FamilySymbol));
-        //        foreach (FamilySymbol symbol in collector)
-        //        {
-        //            if (symbol.Family.Name == familyName && symbol.Name == typeName)
-        //            {
-        //                // Activate symbol if not active
-        //                if (!symbol.IsActive)
-        //                {
-        //                    using (Transaction activateTransaction = new Transaction(doc, "Activate Symbol"))
-        //                    {
-        //                        activateTransaction.Start();
-        //                        symbol.Activate();
-        //                        doc.Regenerate();
-        //                        activateTransaction.Commit();
-        //                    }
-        //                }
-        //                return symbol;
-        //            }
-        //        }
-
-        //        TaskDialog.Show("Error", $"Symbol '{typeName}' not found in family '{familyName}'");
-        //        return null;
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        TaskDialog.Show("Error", $"Error loading family: {ex.Message}");
-        //        return null;
-        //    }
-        //}
         private FamilySymbol LoadAndGetFamilySymbol(Document doc, string familyPath, string familyName, string typeName)
         {
             try
