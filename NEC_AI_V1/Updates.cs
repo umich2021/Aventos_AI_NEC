@@ -9,24 +9,16 @@ namespace NEC_AI_V1
 {
     internal class Updates
     {
-        public Result OnStartup(UIControlledApplication application)
-        {
-            // Check for updates (async, non-blocking)
-            Task.Run(() => CheckForUpdates());
-
-            // Rest of your startup code...
-            return Result.Succeeded;
-        }
-
-        private async void CheckForUpdates()
+        public static async void CheckForUpdates()
         {
             try
             {
                 using (var client = new System.Net.WebClient())
                 {
                     // Check version on your server
-                    string latestVersion = await client.DownloadStringTaskAsync("https://aventos.dev/version.txt");
+                    string latestVersion = await client.DownloadStringTaskAsync("https://raw.githubusercontent.com/umich2021/Aventos_AI_NEC/master/NEC_AI_V1/Version/Version.txt");
                     string currentVersion = "1.0.0"; // Update this with each release
+                    TaskDialog.Show("current version is updated", $"this is working latest version is {latestVersion}");
 
                     if (latestVersion.Trim() != currentVersion)
                     {
@@ -41,10 +33,15 @@ namespace NEC_AI_V1
                             System.Diagnostics.Process.Start("https://aventos.dev/download");
                         }
                     }
+                    else
+                    {
+                        TaskDialog.Show("current version is updated", $"current version is {currentVersion}");
+                    }
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                TaskDialog.Show("Update Check Failed", $"Error: {ex.Message}");
                 // Silently fail if offline or server unreachable
             }
         }

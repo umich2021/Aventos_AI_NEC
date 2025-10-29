@@ -58,6 +58,13 @@ begin
     AddinContent := 
       '<?xml version="1.0" encoding="utf-8"?>' + #13#10 +
       '<RevitAddIns>' + #13#10 +
+      ' <AddIn Type="Application">' + #13#10 +
+      '   <Name>Aventos AI Application</Name>' + #13#10 +
+      '   <FullClassName>NEC_AI_V1.Startup</FullClassName>' + #13#10 +
+      '   <Assembly>' + ExpandConstant('{app}') + '\NEC_AI_V1.dll</Assembly>' + #13#10 +
+      '   <AddInId>5288A2C7-782C-4896-87F9-991C827F5077</AddInId>' + #13#10 +
+      '   <VendorId>AVEN</VendorId>' + #13#10 +
+      ' </AddIn>' + #13#10 +
       ' <AddIn Type="Command">' + #13#10 +
       '   <Name>NEC AI BIM Info Gatherer</Name>' + #13#10 +
       '   <FullClassName>NEC_AI_V1.GatherBIMInfoCommand</FullClassName>' + #13#10 +
