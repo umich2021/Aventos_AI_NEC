@@ -16,7 +16,7 @@ namespace NEC_AI_V1
             }
             catch (Exception ex)
             {
-                //TaskDialog.Show("Startup Error", ex.Message);
+                TaskDialog.Show("Startup Error", ex.Message);
             }
 
 
